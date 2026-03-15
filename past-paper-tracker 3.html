@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past Paper Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0d0d0f; --bg2: #13131a; --bg3: #1a1a24;
+      --border:  #24243a; --border2: #2e2e48;
+      --text:    #e8e6f0; --text2: #8a88a8; --text3: #4a4868;
+      --amber:   #d08020; --amberlt: #1e1408;
+      --green:   #3aad60; --greenlt: #071a0e;
+      --orange:  #e07830; --ornglt:  #1e0e04;
+      --red:     #d04040; --redlt:   #1e0808;
+      --purple:  #9858d8; --purplt:  #140820;
+      --slate:   #8898b0; --slatlt:  #0c1018;
+    }
+    html,body { height:100%; background:var(--bg); color:var(--text);
+      font-family:'DM Mono',monospace; font-size:14px; }
+    #root { min-height:100vh; }
+
+    /* ── layout ── */
+    .topbar {
+      position:sticky; top:0; z-index:50;
+      background:#0d0d0fcc; backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--border);
+      padding:14px 24px;
+    }
+    .topbar-inner { max-width:820px; margin:0 auto;
+      display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .container { max-width:820px; margin:0 auto; padding:24px 24px 80px; }
+
+    /* ── buttons ── */
+    .btn { border:none; border-radius:8px; font-family:inherit;
+      cursor:pointer; font-weight:600; transition:all .15s; }
+    .btn-primary {
+      background:linear-gradient(135deg,#8840c0,#a860e0);
+      color:#fff; padding:11px 24px; font-size:.85rem;
+      box-shadow:0 4px 16px #9858d820;
+    }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px #9858d830; }
+    .btn-primary:disabled { background:var(--bg3); color:var(--text3); cursor:not-allowed; transform:none; box-shadow:none; }
+    .btn-ghost { background:transparent; border:1px solid var(--border2);
+      color:var(--text3); padding:8px 16px; font-size:.78rem; }
+    .btn-ghost:hover { border-color:var(--border); color:var(--text2); }
+    .btn-back { background:transparent; border:1px solid var(--border2);
+      color:var(--text2); padding:6px 12px; font-size:.75rem; border-radius:6px;
+      font-family:inherit; cursor:pointer; transition:all .15s; }
+    .btn-back:hover { border-color:var(--amber); color:var(--amber); }
+    .btn-danger-sm { background:transparent; border:1px solid #2d0a0a;
+      color:var(--red); padding:5px 10px; font-size:.7rem; border-radius:6px;
+      font-family:inherit; cursor:pointer; }
+    .btn-danger-sm:hover { border-color:var(--red); }
+
+    /* ── forms ── */
+    input[type=text], input[type=number], input[type=password], textarea {
+      background:var(--bg); border:1px solid var(--border2);
+      border-radius:8px; color:var(--text); padding:10px 14px;
+      font-family:inherit; font-size:.9rem; width:100%; outline:none;
+      transition:border-color .15s;
+    }
+    input:focus, textarea:focus { border-color:var(--amber); }
+    input::placeholder, textarea::placeholder { color:var(--text3); }
+    label.lbl { display:block; font-size:.62rem; letter-spacing:.14em;
+      text-transform:uppercase; color:var(--text3); margin-bottom:6px; font-weight:500; }
+
+    /* ── cards ── */
+    .card { background:var(--bg2); border:1px solid var(--border);
+      border-radius:12px; padding:20px; }
+    .panel { background:var(--bg2); border:1px solid var(--border2);
+      border-radius:14px; padding:24px;
+      animation:fadeUp .2s ease; }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(6px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ── name screen ── */
+    .name-screen { min-height:100vh; display:flex;
+      align-items:center; justify-content:center; padding:40px 24px; }
+    .name-card { background:var(--bg2); border:1px solid var(--border2);
+      border-radius:20px; padding:48px 40px; max-width:400px; width:100%;
+      text-align:center; box-shadow:0 20px 60px #00000060; }
+    .name-card h1 { font-family:'Playfair Display',serif;
+      font-size:1.8rem; margin-bottom:8px; }
+    .name-card p { color:var(--text2); font-size:.82rem;
+      margin-bottom:28px; line-height:1.7; }
+
+    /* ── modal ── */
+    .overlay { position:fixed; inset:0; background:#00000090;
+      backdrop-filter:blur(4px); z-index:200;
+      display:flex; align-items:center; justify-content:center; padding:24px; }
+    .modal { background:var(--bg2); border:1px solid var(--border2);
+      border-radius:16px; padding:32px; max-width:420px; width:100%;
+      animation:fadeUp .2s ease; }
+    .modal h3 { font-family:'Playfair Display',serif; font-size:1.2rem; margin-bottom:8px; }
+    .modal p { font-size:.8rem; color:var(--text2); margin-bottom:20px; line-height:1.6; }
+
+    /* ── brand ── */
+    .brand-title { font-family:'Playfair Display',serif;
+      font-size:1.05rem; font-weight:600; color:var(--text); }
+    .brand-sub { font-size:.62rem; color:var(--text3); letter-spacing:.12em; text-transform:uppercase; }
+    .student-chip { background:#1a1408; border:1px solid #3a2a10;
+      color:var(--amber); border-radius:20px; padding:3px 12px;
+      font-size:.7rem; letter-spacing:.04em; }
+    .teacher-btn { background:transparent; border:1px solid var(--border);
+      color:var(--text3); padding:6px 12px; border-radius:6px;
+      font-family:inherit; font-size:.7rem; cursor:pointer;
+      text-transform:uppercase; letter-spacing:.08em; transition:all .15s; }
+    .teacher-btn:hover { color:var(--text2); border-color:var(--border2); }
+    .teacher-tag { background:#140820; color:var(--purple);
+      border:1px solid #9858d830; border-radius:6px;
+      padding:3px 10px; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; }
+
+    /* ── section label ── */
+    .sec-lbl { font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
+      color:var(--text3); margin-bottom:14px; margin-top:28px;
+      display:flex; align-items:center; gap:10px; }
+    .sec-lbl::after { content:''; flex:1; height:1px; background:var(--border); }
+
+    /* ── tabs ── */
+    .tab-bar { display:flex; gap:2px; background:#100e1f; border-radius:8px;
+      padding:3px; border:1px solid var(--border); margin-bottom:4px; }
+    .tab-btn { background:transparent; border:none; color:var(--text3);
+      padding:7px 18px; border-radius:6px; font-family:inherit;
+      font-size:.7rem; cursor:pointer; text-transform:uppercase;
+      letter-spacing:.09em; font-weight:600; transition:all .15s; }
+    .tab-btn:hover { color:var(--text2); }
+    .tab-btn.active { background:#1e1830; color:var(--amber); }
+
+    /* ── paper cards grid ── */
+    .paper-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; margin-top:16px; }
+    .paper-card { background:var(--bg2); border:1px solid var(--border);
+      border-radius:12px; padding:18px; cursor:pointer; transition:all .18s;
+      position:relative; overflow:hidden; }
+    .paper-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg,var(--amber),transparent); opacity:0; transition:opacity .18s; }
+    .paper-card:hover { border-color:var(--border2); transform:translateY(-2px); box-shadow:0 8px 30px #00000050; }
+    .paper-card:hover::after { opacity:1; }
+    .paper-card-title { font-family:'Playfair Display',serif; font-size:.95rem; font-weight:600; margin-bottom:6px; }
+    .paper-card-meta { font-size:.68rem; color:var(--text3); margin-bottom:8px; }
+    .new-paper-btn { background:transparent; border:1px dashed var(--border2);
+      border-radius:12px; padding:18px; cursor:pointer; transition:all .18s;
+      color:var(--text3); font-size:.8rem; font-family:inherit;
+      display:flex; align-items:center; justify-content:center; gap:8px; min-height:80px; }
+    .new-paper-btn:hover { border-color:var(--amber); color:var(--amber); background:var(--amberlt); }
+
+    /* ── phase progress ── */
+    .phase-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      font-size:.68rem; padding:3px 10px; border-radius:12px;
+      font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    }
+    .phase-during  { background:#071a0e; color:var(--green);  border:1px solid #1a4828; }
+    .phase-marking { background:#1e0808; color:var(--red);    border:1px solid #4a1a1a; }
+    .phase-complete{ background:#14081e; color:var(--purple); border:1px solid #3a1870; }
+
+    /* ── progress bar ── */
+    .prog-track { height:5px; background:var(--border); border-radius:3px; overflow:hidden; margin-top:8px; }
+    .prog-fill   { height:100%; border-radius:3px; transition:width .4s;
+      background:linear-gradient(90deg,var(--amber),#e8a040); }
+
+    /* ── during/marking big option buttons ── */
+    .option-btn {
+      display:flex; align-items:flex-start; gap:14px;
+      background:var(--bg); border:1.5px solid var(--border2);
+      border-radius:12px; padding:16px; cursor:pointer;
+      transition:all .15s; font-family:inherit; text-align:left; width:100%;
+      margin-bottom:10px;
+    }
+    .option-btn:hover { border-color:var(--border); }
+    .option-btn.selected { border-width:2px; }
+    .option-icon { font-size:1.3rem; flex-shrink:0; margin-top:1px; }
+    .option-main { font-size:.88rem; font-weight:600; }
+    .option-sub  { font-size:.72rem; margin-top:3px; opacity:.7; }
+
+    .opt-green  { border-color:var(--green)!important;  background:var(--greenlt)!important; }
+    .opt-orange { border-color:var(--orange)!important; background:var(--ornglt)!important;  }
+    .opt-purple { border-color:var(--purple)!important; background:var(--purplt)!important;  }
+    .opt-red    { border-color:var(--red)!important;    background:var(--redlt)!important;   }
+    .opt-slate  { border-color:var(--slate)!important;  background:var(--slatlt)!important;  }
+    .opt-amber  { border-color:var(--amber)!important;  background:var(--amberlt)!important; }
+
+    /* ── big question number ── */
+    .q-hero { font-family:'Playfair Display',serif;
+      font-size:5rem; font-weight:700; color:var(--text3); line-height:1;
+      text-align:center; padding:24px 0 16px; }
+    .q-during-badge {
+      display:inline-flex; align-items:center; gap:6px;
+      font-size:.75rem; font-weight:600; padding:4px 12px;
+      border-radius:20px; margin-bottom:16px;
+    }
+
+    /* ── transition screen ── */
+    .transition-screen { text-align:center; padding:60px 20px; }
+    .transition-icon { font-size:3rem; margin-bottom:16px; }
+    .transition-screen h2 { font-family:'Playfair Display',serif;
+      font-size:1.6rem; margin-bottom:12px; }
+    .transition-screen p { color:var(--text2); font-size:.85rem; line-height:1.7; max-width:400px; margin:0 auto 32px; }
+
+    /* ── report ── */
+    .report-group { margin-bottom:28px; }
+    .report-group-head { font-size:.65rem; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--text3); margin-bottom:10px; padding-bottom:6px;
+      border-bottom:1px solid var(--border); display:flex; justify-content:space-between; }
+    .report-group-subtitle { color:var(--text3); font-size:.62rem; }
+    .report-item { background:var(--bg2); border:1px solid var(--border);
+      border-radius:10px; padding:14px 16px; margin-bottom:8px; }
+    .report-item-top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+    .report-action { font-size:.78rem; color:var(--text2); line-height:1.5; }
+    .report-action::before { content:'→  '; color:var(--amber); font-weight:700; }
+    .report-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:10px; margin-bottom:24px; }
+    .stat-card { background:var(--bg2); border:1px solid var(--border);
+      border-radius:10px; padding:14px; text-align:center; }
+    .stat-num { font-family:'Playfair Display',serif; font-size:2rem; font-weight:700; line-height:1; }
+    .stat-lbl { font-size:.62rem; color:var(--text3); margin-top:4px; text-transform:uppercase; letter-spacing:.08em; }
+
+    /* ── badge ── */
+    .badge { display:inline-flex; align-items:center; gap:4px;
+      border-radius:5px; padding:2px 8px; font-size:.68rem; font-weight:600;
+      border:1px solid transparent; white-space:nowrap; }
+    .badge-green  { background:var(--greenlt); color:var(--green);  border-color:#1a4828; }
+    .badge-orange { background:var(--ornglt);  color:var(--orange); border-color:#4a2010; }
+    .badge-purple { background:var(--purplt);  color:var(--purple); border-color:#3a1870; }
+    .badge-red    { background:var(--redlt);   color:var(--red);    border-color:#4a1a1a; }
+    .badge-slate  { background:var(--slatlt);  color:var(--slate);  border-color:#283040; }
+    .badge-amber  { background:var(--amberlt); color:var(--amber);  border-color:#3a2010; }
+
+    /* ── teacher ── */
+    .student-block { background:var(--bg2); border:1px solid var(--border); border-radius:12px; margin-bottom:10px; overflow:hidden; }
+    .student-block-hdr { padding:14px 18px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition:background .15s; }
+    .student-block-hdr:hover { background:var(--bg3); }
+    .student-name { font-family:'Playfair Display',serif; font-size:1rem; font-weight:600; }
+    .student-body { padding:0 18px 14px; border-top:1px solid var(--border); }
+    .teacher-paper { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-top:10px; }
+    .teacher-paper-title { font-size:.82rem; font-weight:600; color:var(--text2); margin-bottom:6px; }
+    .teacher-q { display:flex; gap:8px; align-items:center; font-size:.72rem; padding:3px 0; border-bottom:1px solid var(--border); }
+    .teacher-q:last-child { border:none; }
+    .teacher-q-num { color:var(--text3); width:36px; flex-shrink:0; }
+
+    /* ── empty ── */
+    .empty { text-align:center; padding:60px 0; color:var(--text3); }
+    .empty-icon { font-size:2.5rem; margin-bottom:12px; }
+    .empty p { font-size:.85rem; line-height:1.7; }
+
+    /* ── scrollbar ── */
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+// ── Firebase config ───────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCYcEQF6pvH2wooI5u__AWaGLLgWGpl_mk",
+  authDomain:        "past-paper-tracker-8bc10.firebaseapp.com",
+  projectId:         "past-paper-tracker-8bc10",
+  storageBucket:     "past-paper-tracker-8bc10.firebasestorage.app",
+  messagingSenderId: "33410078760",
+  appId:             "1:33410078760:web:5b7516d48db796b435bd1d"
+};
+const TEACHER_PASSWORD = "changeme123";
+
+// ── Firebase imports ─────────────────────────────────────────
+import { initializeApp }
+  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, addDoc, getDocs,
+         doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { createElement as h, useState, useEffect, useCallback }
+  from 'https://esm.sh/react@18';
+import { createRoot }
+  from 'https://esm.sh/react-dom@18/client';
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getFirestore(app);
+
+// ── Constants ─────────────────────────────────────────────────
+
+const DURING_OPTS = [
+  { v:'first_time',    icon:'✓',  label:'Got it first time',
+    sub:'', colorClass:'opt-green',  badge:'badge-green',  badgeLabel:'Got it' },
+  { v:'checked_notes', icon:'📖', label:'Checked notes — then got it',
+    sub:'You\'ll log what you missed during marking', colorClass:'opt-orange', badge:'badge-orange', badgeLabel:'Used notes' },
+  { v:'came_back',     icon:'↩',  label:'Left it, came back — then answered',
+    sub:'You\'ll log what you missed during marking', colorClass:'opt-purple', badge:'badge-purple', badgeLabel:'Came back' },
+  { v:'skipped',       icon:'→',  label:"Couldn't do it — moving on",
+    sub:"We'll revisit this at the end of marking",   colorClass:'opt-red',    badge:'badge-red',    badgeLabel:'Skipped' },
+];
+
+// Ordered easiest action → hardest
+const MISTAKE_TYPES = [
+  { k:'A', label:'Forgot a formula',
+    action:'Add to the front cover of your Mistakes Book.',
+    effort:1, colorClass:'opt-amber', badge:'badge-amber' },
+  { k:'B', label:'Forgot a definition or key word',
+    action:'Add to the back of your Mistakes Book.',
+    effort:1, colorClass:'opt-amber', badge:'badge-amber' },
+  { k:'G', label:'Unforced error  (sign, arithmetic, handwriting)',
+    action:'Reflect: were you skipping steps? Was your working unclear? Fix the habit.',
+    effort:2, colorClass:'opt-slate', badge:'badge-slate' },
+  { k:'C', label:'Got the maths mechanics wrong',
+    action:'Find drill questions — no context, just the maths. Repeat until fluent.',
+    effort:3, colorClass:'opt-orange', badge:'badge-orange' },
+  { k:'D', label:'Chose the wrong topic entirely',
+    action:'Underline every key word. Write beside each one what maths it hints at. Annotate any diagrams.',
+    effort:4, colorClass:'opt-red', badge:'badge-red' },
+  { k:'E', label:'Right topic but wrong part',
+    action:'Underline every key word. Write beside each one what maths it hints at. Annotate any diagrams.',
+    effort:4, colorClass:'opt-purple', badge:'badge-purple' },
+  { k:'F', label:'Right topic but wrong structure',
+    action:'Find a similar worked example. Annotate each line of working. Write a step-by-step guide.',
+    effort:5, colorClass:'opt-purple', badge:'badge-purple' },
+  { k:'H', label:"Still can't work out what went wrong",
+    action:'Screenshot the question and email your teacher.',
+    effort:6, colorClass:'opt-red', badge:'badge-red' },
+];
+
+const EFFORT_GROUPS = [
+  { efforts:[1], title:'Quick wins — do these first', sub:'Add to your Mistakes Book (5 min)' },
+  { efforts:[2], title:'Habits',                       sub:'Reflect on how you work (5 min)' },
+  { efforts:[3], title:'Drill practice',               sub:'Find questions and repeat (15–30 min each)' },
+  { efforts:[4], title:'Analyse the question',         sub:'Annotate with clues (15 min each)' },
+  { efforts:[5], title:'Structured revision',          sub:'Find example + write step-by-step guide (30–45 min)' },
+  { efforts:[6], title:'Ask for help',                 sub:'Screenshot and email your teacher' },
+];
+
+function mistakeByKey(k) { return MISTAKE_TYPES.find(m => m.k === k); }
+function duringByV(v)     { return DURING_OPTS.find(d => d.v === v); }
+
+function needsMistake(during, correct) {
+  return !(during === 'first_time' && correct === true);
+}
+
+function availableMistakeTypes(correct) {
+  // H only if still can't figure it out (correct === false)
+  return correct === false ? MISTAKE_TYPES : MISTAKE_TYPES.filter(m => m.k !== 'H');
+}
+
+// ── Firebase helpers ──────────────────────────────────────────
+
+async function getPapers(studentName) {
+  const q = query(
+    collection(db, 'papers'),
+    where('studentName', '==', studentName),
+    orderBy('createdAt', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getAllPapers() {
+  const snap = await getDocs(
+    query(collection(db, 'papers'), orderBy('createdAt', 'desc'))
+  );
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function addPaper(studentName, title, numQuestions) {
+  const questions = Array.from({ length: numQuestions }, (_, i) => ({
+    num: i + 1, during: null, correct: null, mistake: null, topic: '', done: false
+  }));
+  return await addDoc(collection(db, 'papers'), {
+    studentName, title, numQuestions, phase: 'during',
+    questions, createdAt: serverTimestamp()
+  });
+}
+
+async function savePaper(paperId, data) {
+  await updateDoc(doc(db, 'papers', paperId), data);
+}
+
+async function deletePaper(paperId) {
+  await deleteDoc(doc(db, 'papers', paperId));
+}
+
+// ── Small components ──────────────────────────────────────────
+
+function OptionButton({ icon, label, sub, colorClass, onClick, selected }) {
+  return h('button', {
+    className: `option-btn ${selected ? colorClass : ''}`,
+    onClick,
+    style: selected ? {} : {}
+  },
+    h('span', { className:'option-icon' }, icon),
+    h('div', null,
+      h('div', { className:'option-main' }, label),
+      sub && h('div', { className:'option-sub' }, sub)
+    )
+  );
+}
+
+function DuringBadge({ during }) {
+  const opt = duringByV(during);
+  if (!opt) return null;
+  return h('span', {
+    className: `q-during-badge ${opt.badge}`,
+    style: {}
+  }, opt.icon, ' ', opt.badgeLabel);
+}
+
+function MistakeBadge({ mistake }) {
+  const m = mistakeByKey(mistake);
+  if (!m) return null;
+  return h('span', { className: `badge ${m.badge}` }, m.k, ' ', m.label);
+}
+
+function PhasePill({ phase }) {
+  const map = {
+    during: ['phase-during', '● During paper'],
+    marking: ['phase-marking', '● Marking'],
+    complete: ['phase-complete', '✓ Complete'],
+  };
+  const [cls, lbl] = map[phase] || ['phase-during', phase];
+  return h('span', { className: `phase-pill ${cls}` }, lbl);
+}
+
+// ── NameScreen ────────────────────────────────────────────────
+
+function NameScreen({ onConfirm }) {
+  const [name, setName] = useState('');
+  const go = () => { if (name.trim()) onConfirm(name.trim()); };
+  return h('div', { className:'name-screen' },
+    h('div', { className:'name-card' },
+      h('h1', null, 'Past Paper Tracker'),
+      h('p', null, 'Year 13 Maths Revision\nEnter your name to access your papers.'),
+      h('input', {
+        type:'text', placeholder:'Your name…', value:name, autoFocus:true,
+        onChange: e => setName(e.target.value),
+        onKeyDown: e => e.key==='Enter' && go(),
+        style:{ marginBottom:14 }
+      }),
+      h('button', { className:'btn btn-primary', style:{width:'100%'}, disabled:!name.trim(), onClick:go },
+        'Get started →')
+    )
+  );
+}
+
+// ── TeacherModal ──────────────────────────────────────────────
+
+function TeacherModal({ onSuccess, onClose }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+  const attempt = () => {
+    if (pw === TEACHER_PASSWORD) onSuccess();
+    else { setErr(true); setPw(''); }
+  };
+  return h('div', { className:'overlay', onClick:onClose },
+    h('div', { className:'modal', onClick:e=>e.stopPropagation() },
+      h('h3', null, '🔐 Teacher Access'),
+      h('p', null, 'Enter your teacher password to view the class dashboard.'),
+      h('input', {
+        type:'password', placeholder:'Password…', value:pw, autoFocus:true,
+        style: err ? {borderColor:'var(--red)',marginBottom:8} : {marginBottom:8},
+        onChange: e => { setPw(e.target.value); setErr(false); },
+        onKeyDown: e => e.key==='Enter' && attempt()
+      }),
+      err && h('p', { style:{color:'var(--red)',fontSize:'.75rem',marginBottom:12} }, 'Incorrect password'),
+      h('div', { style:{display:'flex',gap:10} },
+        h('button', { className:'btn btn-primary', onClick:attempt }, 'Unlock'),
+        h('button', { className:'btn btn-ghost', onClick:onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+// ── NewPaperModal ─────────────────────────────────────────────
+
+function NewPaperModal({ onConfirm, onClose }) {
+  const [title, setTitle] = useState('');
+  const [num, setNum]     = useState('');
+  const valid = title.trim() && Number(num) >= 1 && Number(num) <= 50;
+  const go = () => { if (valid) onConfirm(title.trim(), Number(num)); };
+  return h('div', { className:'overlay', onClick:onClose },
+    h('div', { className:'modal', onClick:e=>e.stopPropagation() },
+      h('h3', null, '📄 Start a new paper'),
+      h('p', null, 'Give it a title and say how many questions it has.'),
+      h('label', { className:'lbl' }, 'Paper title'),
+      h('input', {
+        type:'text', placeholder:'e.g. June 2023 Paper 1', value:title, autoFocus:true,
+        style:{marginBottom:14},
+        onChange: e => setTitle(e.target.value),
+        onKeyDown: e => e.key==='Enter' && go()
+      }),
+      h('label', { className:'lbl' }, 'Number of questions'),
+      h('input', {
+        type:'number', placeholder:'e.g. 12', value:num, min:1, max:50,
+        style:{marginBottom:20},
+        onChange: e => setNum(e.target.value),
+        onKeyDown: e => e.key==='Enter' && go()
+      }),
+      h('div', { style:{display:'flex',gap:10} },
+        h('button', { className:'btn btn-primary', disabled:!valid, onClick:go }, 'Start paper'),
+        h('button', { className:'btn btn-ghost', onClick:onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+// ── DuringPhase ───────────────────────────────────────────────
+
+function DuringPhase({ paper, onUpdate }) {
+  const qs = paper.questions;
+  const cursor = qs.findIndex(q => q.during === null);
+  const done = cursor === -1;
+
+  async function pick(v) {
+    const newQs = qs.map((q,i) => i === cursor ? { ...q, during: v } : q);
+    const allSet = newQs.every(q => q.during !== null);
+    const newPhase = allSet ? 'marking' : 'during';
+    await savePaper(paper.id, { questions: newQs, phase: newPhase });
+    onUpdate({ ...paper, questions: newQs, phase: newPhase });
+  }
+
+  if (done) return null;
+
+  const q = qs[cursor];
+  const pct = Math.round((cursor / qs.length) * 100);
+
+  return h('div', { className:'panel', style:{marginTop:24} },
+    h('div', { style:{textAlign:'center',marginBottom:8,fontSize:'.72rem',color:'var(--text3)',letterSpacing:'.1em'} },
+      `QUESTION ${cursor+1} OF ${qs.length}`),
+    h('div', { className:'q-hero' }, `Q${q.num}`),
+    h('p', { style:{textAlign:'center',marginBottom:20,color:'var(--text2)',fontSize:'.85rem'} },
+      'How did this question go?'),
+    ...DURING_OPTS.map(opt =>
+      h(OptionButton, { key:opt.v, ...opt, onClick: () => pick(opt.v) })
+    ),
+    h('div', { style:{marginTop:16} },
+      h('div', { style:{display:'flex',justifyContent:'space-between',fontSize:'.68rem',color:'var(--text3)',marginBottom:4} },
+        h('span', null, `${cursor} of ${qs.length} done`),
+        h('span', null, `${pct}%`)
+      ),
+      h('div', { className:'prog-track' },
+        h('div', { className:'prog-fill', style:{width:`${pct}%`} })
+      )
+    )
+  );
+}
+
+// ── MarkingPhase ──────────────────────────────────────────────
+
+function MarkingPhase({ paper, onUpdate }) {
+  const qs = paper.questions;
+  const attempted = qs.filter(q => q.during !== 'skipped');
+  const skipped   = qs.filter(q => q.during === 'skipped');
+  const queue     = [...attempted, ...skipped];
+
+  // Find first undone
+  const firstUndone = queue.findIndex(q => !q.done);
+  const [cursor, setCursor]       = useState(firstUndone === -1 ? queue.length : firstUndone);
+  const [step, setStep]           = useState('result');
+  const [tempCorrect, setCorrect] = useState(null);
+  const [tempTopic, setTopic]     = useState('');
+  const [showTransition, setShowTransition] = useState(false);
+
+  const allDone = cursor >= queue.length;
+  const enteringSkipped = cursor === attempted.length && skipped.length > 0;
+
+  useEffect(() => {
+    if (enteringSkipped && step === 'result' && !showTransition) {
+      // Check if we just crossed the boundary
+      if (cursor > 0 && queue[cursor - 1] && !queue[cursor - 1].done === false) {
+        setShowTransition(true);
+      }
+    }
+  }, [cursor]);
+
+  async function finishQuestion(qNum, correct, mistake, topic) {
+    const newQs = qs.map(q =>
+      q.num === qNum ? { ...q, correct, mistake: mistake || null, topic: topic || '', done: true } : q
+    );
+    const allComplete = newQs.every(q => q.done);
+    const newPhase = allComplete ? 'complete' : 'marking';
+    await savePaper(paper.id, { questions: newQs, phase: newPhase });
+    onUpdate({ ...paper, questions: newQs, phase: newPhase });
+    if (!allComplete) {
+      const next = cursor + 1;
+      setCursor(next);
+      setStep('result');
+      setCorrect(null);
+      setTopic('');
+      // Show transition screen when moving into skipped section
+      if (next === attempted.length && skipped.length > 0) {
+        setShowTransition(true);
+      }
+    }
+  }
+
+  async function handleResult(correct) {
+    const q = queue[cursor];
+    if (!needsMistake(q.during, correct)) {
+      await finishQuestion(q.num, correct, null, tempTopic);
+    } else {
+      setCorrect(correct);
+      setStep('mistake');
+    }
+  }
+
+  async function handleMistake(k) {
+    const q = queue[cursor];
+    await finishQuestion(q.num, tempCorrect, k, tempTopic);
+  }
+
+  if (allDone) return null;
+
+  if (showTransition) {
+    return h('div', { className:'transition-screen', style:{marginTop:24} },
+      h('div', { className:'transition-icon' }, '↩'),
+      h('h2', null, 'Now for the ones you skipped'),
+      h('p', null,
+        `You skipped ${skipped.length} question${skipped.length!==1?'s':''}. ` +
+        'Have you had a chance to work through some topic practice? Let\'s see how you get on with them now.'),
+      h('button', { className:'btn btn-primary', onClick: () => setShowTransition(false) },
+        'Go through skipped questions →')
+    );
+  }
+
+  const q = queue[cursor];
+  const duringOpt = duringByV(q.during);
+  const inSkippedSection = cursor >= attempted.length;
+  const posInSection = inSkippedSection ? cursor - attempted.length : cursor;
+  const sectionSize = inSkippedSection ? skipped.length : attempted.length;
+
+  if (step === 'result') {
+    const prompt = q.during === 'skipped'
+      ? 'After practising the topic — can you answer it now?'
+      : 'Check the mark scheme — was your answer correct?';
+
+    return h('div', { className:'panel', style:{marginTop:24} },
+      h('div', { style:{textAlign:'center',marginBottom:8,fontSize:'.72rem',color:'var(--text3)',letterSpacing:'.1em'} },
+        inSkippedSection
+          ? `SKIPPED QUESTIONS — ${posInSection+1} OF ${sectionSize}`
+          : `MARKING — QUESTION ${posInSection+1} OF ${sectionSize}`
+      ),
+      h('div', { className:'q-hero' }, `Q${q.num}`),
+      h('div', { style:{textAlign:'center',marginBottom:20} },
+        h(DuringBadge, { during: q.during })
+      ),
+      h('p', { style:{textAlign:'center',marginBottom:20,color:'var(--text2)',fontSize:'.88rem',fontWeight:600} }, prompt),
+
+      // Optional topic
+      h('label', { className:'lbl' }, 'Topic (optional — what was this question about?)'),
+      h('input', {
+        type:'text', placeholder:'e.g. Parametric differentiation, Integration by parts…',
+        value:tempTopic,
+        onChange: e => setTopic(e.target.value),
+        style:{marginBottom:20}
+      }),
+
+      h('div', { style:{display:'flex',gap:10} },
+        h('button', {
+          className:'btn option-btn opt-green',
+          style:{flex:1,justifyContent:'center',marginBottom:0},
+          onClick: () => handleResult(true)
+        }, h('span',{className:'option-icon'},'✓'), h('div',null,h('div',{className:'option-main'},'Yes — correct'))),
+        h('button', {
+          className:'btn option-btn opt-red',
+          style:{flex:1,justifyContent:'center',marginBottom:0},
+          onClick: () => handleResult(false)
+        }, h('span',{className:'option-icon'},'✗'), h('div',null,h('div',{className:'option-main'},'No — incorrect')))
+      )
+    );
+  }
+
+  // step === 'mistake'
+  const opts = availableMistakeTypes(tempCorrect);
+  const prompt2 = tempCorrect
+    ? 'What key information did you miss?'
+    : 'What went wrong?';
+
+  return h('div', { className:'panel', style:{marginTop:24} },
+    h('div', { style:{textAlign:'center',marginBottom:8,fontSize:'.72rem',color:'var(--text3)',letterSpacing:'.1em'} },
+      `Q${q.num} — ${prompt2.toUpperCase()}`
+    ),
+    h('p', { style:{textAlign:'center',marginBottom:20,color:'var(--text2)',fontSize:'.85rem'} }, prompt2),
+    ...opts.map(m =>
+      h('button', {
+        key: m.k,
+        className: `option-btn ${m.colorClass}`,
+        onClick: () => handleMistake(m.k)
+      },
+        h('span', { className:'option-icon', style:{fontWeight:700,fontSize:'1rem'} }, m.k),
+        h('div', null,
+          h('div', { className:'option-main' }, m.label),
+          h('div', { className:'option-sub' }, m.action)
+        )
+      )
+    ),
+    h('button', {
+      className:'btn btn-ghost', style:{marginTop:8,width:'100%'},
+      onClick: () => { setStep('result'); setCorrect(null); }
+    }, '← Back')
+  );
+}
+
+// ── ReportPhase ───────────────────────────────────────────────
+
+function ReportPhase({ paper, onBack }) {
+  const qs = paper.questions;
+  const total   = qs.length;
+  const correct = qs.filter(q => q.correct === true).length;
+  const gotFirst = qs.filter(q => q.during==='first_time' && q.correct===true).length;
+  const withMistakes = qs.filter(q => q.mistake !== null);
+
+  // Group actions by effort level
+  const groups = EFFORT_GROUPS.map(g => {
+    const items = withMistakes.filter(q => {
+      const m = mistakeByKey(q.mistake);
+      return m && g.efforts.includes(m.effort);
+    });
+    return { ...g, items };
+  }).filter(g => g.items.length > 0);
+
+  return h('div', { style:{marginTop:24} },
+    // Summary stats
+    h('div', { className:'report-stats' },
+      h('div', { className:'stat-card' },
+        h('div', { className:'stat-num', style:{color:'var(--text)'} }, total),
+        h('div', { className:'stat-lbl' }, 'Questions')
+      ),
+      h('div', { className:'stat-card' },
+        h('div', { className:'stat-num', style:{color:'var(--green)'} }, correct),
+        h('div', { className:'stat-lbl' }, 'Correct')
+      ),
+      h('div', { className:'stat-card' },
+        h('div', { className:'stat-num', style:{color:'var(--amber)'} }, gotFirst),
+        h('div', { className:'stat-lbl' }, 'First time')
+      ),
+      h('div', { className:'stat-card' },
+        h('div', { className:'stat-num', style:{color:'var(--red)'} }, withMistakes.length),
+        h('div', { className:'stat-lbl' }, 'Actions')
+      ),
+    ),
+
+    withMistakes.length === 0
+      ? h('div', { className:'empty' },
+          h('div', { className:'empty-icon' }, '🎉'),
+          h('p', null, 'No actions — great paper!')
+        )
+      : h('div', null,
+          h('p', { style:{fontSize:'.8rem',color:'var(--text2)',marginBottom:20,lineHeight:1.7} },
+            'Work through these in order — quick wins first. ' +
+            'Each action below comes from the flowchart guidance.'),
+          ...groups.map((g, gi) =>
+            h('div', { key:gi, className:'report-group' },
+              h('div', { className:'report-group-head' },
+                h('span', null, g.title),
+                h('span', { className:'report-group-subtitle' }, g.sub)
+              ),
+              ...g.items.map((q, qi) => {
+                const m = mistakeByKey(q.mistake);
+                const d = duringByV(q.during);
+                return h('div', { key:qi, className:'report-item' },
+                  h('div', { className:'report-item-top' },
+                    h('span', { style:{fontWeight:700,fontSize:'.8rem'} }, `Q${q.num}`),
+                    q.topic && h('span', {
+                      style:{background:'var(--bg3)',border:'1px solid var(--border2)',
+                        borderRadius:4,padding:'1px 8px',fontSize:'.7rem',color:'var(--text2)'}
+                    }, q.topic),
+                    d && h('span', { className: `badge ${d.badge}` }, d.badgeLabel),
+                    m && h('span', { className: `badge ${m.badge}` }, m.k, ' ', m.label)
+                  ),
+                  m && h('div', { className:'report-action' }, m.action)
+                );
+              })
+            )
+          )
+        ),
+
+    h('button', {
+      className:'btn btn-ghost',
+      style:{marginTop:24,width:'100%'},
+      onClick:onBack
+    }, '← Back to papers')
+  );
+}
+
+// ── PaperView ─────────────────────────────────────────────────
+
+function PaperView({ paper, onBack, onUpdate }) {
+  const [local, setLocal] = useState(paper);
+
+  function handle(updated) {
+    setLocal(updated);
+    onUpdate(updated);
+  }
+
+  const phaseLabel = { during:'During Paper', marking:'Marking', complete:'Report' };
+
+  return h('div', null,
+    // Topbar
+    h('div', { className:'topbar' },
+      h('div', { className:'topbar-inner' },
+        h('div', { style:{display:'flex',alignItems:'center',gap:12} },
+          h('button', { className:'btn-back', onClick:onBack }, '← Papers'),
+          h('div', null,
+            h('div', { className:'brand-title' }, local.title),
+            h('div', { className:'brand-sub' },
+              `${local.numQuestions} questions`)
+          ),
+        ),
+        h(PhasePill, { phase: local.phase })
+      )
+    ),
+    h('div', { className:'container' },
+      local.phase === 'during'   && h(DuringPhase,  { paper:local, onUpdate:handle }),
+      local.phase === 'marking'  && h(MarkingPhase, { paper:local, onUpdate:handle }),
+      local.phase === 'complete' && h(ReportPhase,  { paper:local, onBack })
+    )
+  );
+}
+
+// ── PapersList ────────────────────────────────────────────────
+
+function PapersList({ studentName, papers, onSelect, onNew, onTeacher, onChangeName }) {
+  const [tab, setTab] = useState('papers');
+
+  // All questions with mistakes across all papers, for Review tab
+  const allActions = papers
+    .filter(p => p.phase === 'complete' || p.phase === 'marking')
+    .flatMap(p =>
+      (p.questions || [])
+        .filter(q => q.done && q.mistake)
+        .map(q => ({ ...q, paperTitle: p.title, paperId: p.id }))
+    );
+
+  const actionGroups = EFFORT_GROUPS.map(g => ({
+    ...g,
+    items: allActions.filter(q => {
+      const m = mistakeByKey(q.mistake);
+      return m && g.efforts.includes(m.effort);
+    })
+  })).filter(g => g.items.length > 0);
+
+  // Stats
+  const allQs = papers.flatMap(p => p.questions || []);
+  const totalQs = allQs.length;
+  const doneQs  = allQs.filter(q => q.done).length;
+  const correct = allQs.filter(q => q.correct===true).length;
+  const mCounts = {};
+  MISTAKE_TYPES.forEach(m => { mCounts[m.k] = allQs.filter(q=>q.mistake===m.k).length; });
+
+  return h('div', null,
+    h('div', { className:'topbar' },
+      h('div', { className:'topbar-inner' },
+        h('div', { style:{display:'flex',alignItems:'center',gap:12} },
+          h('div', null,
+            h('div', { className:'brand-title' }, 'Past Paper Tracker'),
+            h('div', { className:'brand-sub' }, 'Year 13 Maths Revision')
+          ),
+          h('div', { className:'student-chip' }, studentName)
+        ),
+        h('div', { style:{display:'flex',gap:8} },
+          h('button', { className:'btn btn-ghost', style:{fontSize:'.7rem',padding:'6px 10px'}, onClick:onChangeName }, 'change name'),
+          h('button', { className:'teacher-btn', onClick:onTeacher }, 'Teacher')
+        )
+      )
+    ),
+    h('div', { className:'container' },
+      h('div', { style:{paddingTop:16,marginBottom:4} },
+        h('div', { className:'tab-bar' },
+          ['papers','review','stats'].map(t =>
+            h('button', { key:t, className:`tab-btn ${tab===t?'active':''}`, onClick:()=>setTab(t) },
+              t==='papers'?'📄 Papers': t==='review'?'⚠️ Actions':'📊 Stats'
+            )
+          )
+        )
+      ),
+
+      // ── Papers tab ──
+      tab === 'papers' && h('div', null,
+        h('div', { className:'sec-lbl' }, 'Your papers'),
+        papers.length === 0
+          ? h('div', { className:'empty' },
+              h('div', { className:'empty-icon' }, '📄'),
+              h('p', null, 'No papers yet.\nClick "Start a new paper" to begin.')
+            )
+          : h('div', { className:'paper-grid' },
+              papers.map(p => {
+                const pqs = p.questions || [];
+                const done = pqs.filter(q=>q.done).length;
+                const corr = pqs.filter(q=>q.correct===true).length;
+                const date = p.createdAt?.toDate?.()?.toLocaleDateString('en-GB',
+                  {day:'numeric',month:'short',year:'2-digit'}) || '';
+                return h('div', { key:p.id, className:'paper-card', onClick:()=>onSelect(p) },
+                  h('div', { className:'paper-card-title' }, p.title),
+                  h('div', { className:'paper-card-meta' },
+                    `${p.numQuestions} questions`,
+                    date && ` · ${date}`
+                  ),
+                  h(PhasePill, { phase:p.phase }),
+                  p.phase==='complete' && h('div', { style:{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'} },
+                    h('span',{className:'badge badge-green'}, `${corr} correct`),
+                    pqs.filter(q=>q.mistake).length > 0 &&
+                      h('span',{className:'badge badge-red'}, `${pqs.filter(q=>q.mistake).length} actions`)
+                  )
+                );
+              })
+            ),
+        h('button', { className:'new-paper-btn', style:{marginTop:12,width:'100%'}, onClick:onNew },
+          '+ Start a new paper'
+        )
+      ),
+
+      // ── Actions/Review tab ──
+      tab === 'review' && h('div', null,
+        allActions.length === 0
+          ? h('div', { className:'empty' },
+              h('div', { className:'empty-icon' }, '🎉'),
+              h('p', null, 'No actions yet — complete a paper to see your to-do list here.')
+            )
+          : h('div', null,
+              h('p', { style:{fontSize:'.8rem',color:'var(--text2)',marginBottom:20,lineHeight:1.7} },
+                'All outstanding actions across your papers, ordered easiest → hardest.'),
+              ...actionGroups.map((g, gi) =>
+                h('div', { key:gi, className:'report-group' },
+                  h('div', { className:'report-group-head' },
+                    h('span', null, g.title),
+                    h('span', { className:'report-group-subtitle' }, g.sub)
+                  ),
+                  ...g.items.map((q, qi) => {
+                    const m = mistakeByKey(q.mistake);
+                    return h('div', { key:qi, className:'report-item' },
+                      h('div', { className:'report-item-top' },
+                        h('span',{style:{fontWeight:700,fontSize:'.78rem',color:'var(--text3)'}}, q.paperTitle),
+                        h('span',{style:{fontWeight:700,fontSize:'.85rem'}}, ` Q${q.num}`),
+                        q.topic && h('span',{style:{background:'var(--bg3)',border:'1px solid var(--border2)',borderRadius:4,padding:'1px 8px',fontSize:'.68rem',color:'var(--text2)'}}, q.topic)
+                      ),
+                      m && h('div',{className:'report-action'},m.action)
+                    );
+                  })
+                )
+              )
+            )
+      ),
+
+      // ── Stats tab ──
+      tab === 'stats' && h('div', null,
+        totalQs === 0
+          ? h('div',{className:'empty'},h('p',null,'No data yet.'))
+          : h('div', null,
+              h('div', { className:'report-stats' },
+                h('div',{className:'stat-card'},
+                  h('div',{className:'stat-num',style:{color:'var(--text)'}},papers.length),
+                  h('div',{className:'stat-lbl'},'Papers')
+                ),
+                h('div',{className:'stat-card'},
+                  h('div',{className:'stat-num',style:{color:'var(--text2)'}},totalQs),
+                  h('div',{className:'stat-lbl'},'Questions')
+                ),
+                h('div',{className:'stat-card'},
+                  h('div',{className:'stat-num',style:{color:'var(--green)'}},correct),
+                  h('div',{className:'stat-lbl'},'Correct')
+                ),
+                h('div',{className:'stat-card'},
+                  h('div',{className:'stat-num',style:{color:'var(--amber)'}},
+                    totalQs ? Math.round(correct/totalQs*100)+'%' : '—'
+                  ),
+                  h('div',{className:'stat-lbl'},'Score')
+                )
+              ),
+              h('div',{className:'sec-lbl'},'Mistake breakdown'),
+              ...MISTAKE_TYPES.filter(m=>mCounts[m.k]>0).map(m =>
+                h('div',{key:m.k,style:{display:'flex',alignItems:'center',gap:12,marginBottom:10}},
+                  h('span',{className:`badge ${m.badge}`,style:{minWidth:36,justifyContent:'center'}},m.k),
+                  h('div',{style:{flex:1,fontSize:'.78rem',color:'var(--text2)'}},m.label),
+                  h('div',{style:{height:8,width:`${Math.round(mCounts[m.k]/totalQs*100)}%`,minWidth:4,background:m.badge.replace('badge-','').replace('amber','var(--amber)').replace('slate','var(--slate)').replace('orange','var(--orange)').replace('red','var(--red)').replace('purple','var(--purple)').replace('green','var(--green)'),borderRadius:4}}),
+                  h('span',{style:{fontSize:'.75rem',color:'var(--text3)',minWidth:20,textAlign:'right'}},mCounts[m.k])
+                )
+              )
+            )
+      )
+    )
+  );
+}
+
+// ── TeacherDashboard ──────────────────────────────────────────
+
+function TeacherDashboard({ onClose }) {
+  const [papers, setPapers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => {
+    getAllPapers().then(p => { setPapers(p); setLoading(false); });
+  }, []);
+
+  const byStudent = {};
+  papers.forEach(p => {
+    if (!byStudent[p.studentName]) byStudent[p.studentName] = [];
+    byStudent[p.studentName].push(p);
+  });
+
+  const toggle = name => setExpanded(e => ({ ...e, [name]: !e[name] }));
+
+  return h('div', null,
+    h('div', { className:'topbar' },
+      h('div', { className:'topbar-inner' },
+        h('div', { style:{display:'flex',alignItems:'center',gap:12} },
+          h('button', { className:'btn-back', onClick:onClose }, '← Back'),
+          h('div', null,
+            h('div', { className:'brand-title' }, 'Class Dashboard'),
+            h('div', { className:'brand-sub' }, 'Teacher View')
+          )
+        ),
+        h('div', { className:'teacher-tag' }, '🔐 Teacher')
+      )
+    ),
+    h('div', { className:'container' },
+      h('div', { className:'sec-lbl' }, `${Object.keys(byStudent).length} students`),
+      loading
+        ? h('div', { className:'empty' }, h('p', null, 'Loading…'))
+        : Object.keys(byStudent).length === 0
+          ? h('div', { className:'empty' },
+              h('div',{className:'empty-icon'},'📊'),
+              h('p',null,'No student data yet.')
+            )
+          : Object.entries(byStudent).map(([name, stuPapers]) => {
+              const allQs = stuPapers.flatMap(p => p.questions||[]);
+              const done  = allQs.filter(q=>q.done);
+              const needsTeacher = allQs.filter(q=>q.mistake==='H');
+              const isOpen = expanded[name];
+              return h('div', { key:name, className:'student-block' },
+                h('div', { className:'student-block-hdr', onClick:()=>toggle(name) },
+                  h('div', null,
+                    h('div',{className:'student-name'},name),
+                    h('div',{style:{fontSize:'.68rem',color:'var(--text3)',marginTop:2}},
+                      `${stuPapers.length} paper${stuPapers.length!==1?'s':''} · ${done.length} questions marked`)
+                  ),
+                  h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+                    needsTeacher.length > 0 &&
+                      h('span',{className:'badge badge-red'}, `${needsTeacher.length} need teacher`),
+                    h('span',{style:{color:'var(--text3)',marginLeft:4}}, isOpen?'▲':'▼')
+                  )
+                ),
+                isOpen && h('div', { className:'student-body' },
+                  stuPapers.map(p => {
+                    const pqs = (p.questions||[]).filter(q=>q.done && q.mistake);
+                    return h('div', { key:p.id, className:'teacher-paper' },
+                      h('div', { className:'teacher-paper-title' },
+                        p.title,
+                        h('span',{style:{color:'var(--text3)',fontWeight:400,marginLeft:8}},
+                          `(${p.numQuestions}q · `),
+                        h(PhasePill,{phase:p.phase}),
+                        ')'
+                      ),
+                      pqs.length === 0
+                        ? h('div',{style:{fontSize:'.72rem',color:'var(--green)',padding:'4px 0'}},'✓ No outstanding actions')
+                        : pqs.map((q,i) => {
+                            const m = mistakeByKey(q.mistake);
+                            return h('div',{key:i,className:'teacher-q'},
+                              h('span',{className:'teacher-q-num'},`Q${q.num}`),
+                              q.topic && h('span',{style:{color:'var(--text2)',marginRight:8,fontSize:'.7rem'}},q.topic),
+                              m && h('span',{className:`badge ${m.badge}`,style:{fontSize:'.65rem'}},m.k,' ',m.label)
+                            );
+                          })
+                    );
+                  })
+                )
+              );
+            })
+    )
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────
+
+function App() {
+  const [studentName,  setStudentName]  = useState(() => localStorage.getItem('ppt-name') || '');
+  const [papers,       setPapers]       = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [currentPaper, setCurrentPaper] = useState(null);
+  const [showNew,      setShowNew]      = useState(false);
+  const [showTeacher,  setShowTeacher]  = useState(false);
+  const [isTeacher,    setIsTeacher]    = useState(false);
+
+  const loadPapers = useCallback(async (name) => {
+    setLoading(true);
+    try {
+      const p = await getPapers(name);
+      setPapers(p);
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (studentName) loadPapers(studentName);
+  }, [studentName, loadPapers]);
+
+  async function handleNameConfirm(name) {
+    localStorage.setItem('ppt-name', name);
+    setStudentName(name);
+    await loadPapers(name); // explicit reload — fixes same-name bug
+  }
+
+  function handleChangeName() {
+    localStorage.removeItem('ppt-name');
+    setStudentName('');
+    setPapers([]);
+    setCurrentPaper(null);
+  }
+
+  async function handleNewPaper(title, num) {
+    const ref = await addPaper(studentName, title, num);
+    const newPaper = {
+      id: ref.id, studentName, title, numQuestions: num,
+      phase: 'during',
+      questions: Array.from({length:num},(_,i)=>({
+        num:i+1,during:null,correct:null,mistake:null,topic:'',done:false
+      }))
+    };
+    setPapers(prev => [newPaper, ...prev]);
+    setCurrentPaper(newPaper);
+    setShowNew(false);
+  }
+
+  function handlePaperUpdate(updated) {
+    setPapers(prev => prev.map(p => p.id===updated.id ? updated : p));
+    setCurrentPaper(updated);
+  }
+
+  if (!studentName) return h(NameScreen, { onConfirm: handleNameConfirm });
+  if (isTeacher)   return h(TeacherDashboard, { onClose: () => setIsTeacher(false) });
+
+  if (currentPaper) return h(PaperView, {
+    paper: currentPaper,
+    onBack: () => { setCurrentPaper(null); loadPapers(studentName); },
+    onUpdate: handlePaperUpdate
+  });
+
+  return h('div', null,
+    showNew && h(NewPaperModal, {
+      onConfirm: handleNewPaper,
+      onClose: () => setShowNew(false)
+    }),
+    showTeacher && h(TeacherModal, {
+      onSuccess: () => { setIsTeacher(true); setShowTeacher(false); },
+      onClose: () => setShowTeacher(false)
+    }),
+    h(PapersList, {
+      studentName, papers,
+      onSelect: setCurrentPaper,
+      onNew: () => setShowNew(true),
+      onTeacher: () => setShowTeacher(true),
+      onChangeName: handleChangeName
+    })
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
