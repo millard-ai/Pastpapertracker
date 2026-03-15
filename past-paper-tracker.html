@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past Paper Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0f;
+      --bg2:       #13131a;
+      --bg3:       #1a1a24;
+      --border:    #24243a;
+      --border2:   #2e2e48;
+      --text:      #e8e6f0;
+      --text2:     #8a88a8;
+      --text3:     #4a4868;
+      --amber:     #f0b060;
+      --amber-dim: #f0b06020;
+      --amber-bg:  #1a1205;
+      --green:     #4ade80;
+      --green-bg:  #052e16;
+      --orange:    #fb923c;
+      --orange-bg: #2d1200;
+      --red:       #f87171;
+      --red-bg:    #2d0a0a;
+      --purple:    #c084fc;
+      --purple-bg: #1e0a2e;
+      --slate:     #94a3b8;
+      --slate-bg:  #0f172a;
+    }
+
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    #root { min-height: 100vh; }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 1000; opacity: 0.5;
+    }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: #0d0d0fcc;
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+    }
+    .topbar-inner {
+      max-width: 860px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .back-btn {
+      background: transparent; border: 1px solid var(--border2);
+      color: var(--text2); padding: 6px 12px; border-radius: 6px;
+      font-family: inherit; font-size: 0.75rem; cursor: pointer;
+      transition: all 0.15s; letter-spacing: 0.05em;
+    }
+    .back-btn:hover { border-color: var(--amber); color: var(--amber); }
+    .brand { display: flex; flex-direction: column; }
+    .brand-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem; font-weight: 600; color: var(--text);
+      letter-spacing: -0.01em; line-height: 1.2;
+    }
+    .brand-sub { font-size: 0.65rem; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; }
+    .student-chip {
+      background: var(--amber-bg); border: 1px solid var(--amber-dim);
+      color: var(--amber); border-radius: 20px; padding: 4px 12px;
+      font-size: 0.72rem; letter-spacing: 0.05em;
+    }
+    .teacher-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text3); padding: 6px 12px; border-radius: 6px;
+      font-family: inherit; font-size: 0.7rem; cursor: pointer;
+      transition: all 0.15s; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .teacher-btn:hover { border-color: var(--border2); color: var(--text2); }
+
+    /* ── STATUS BADGES ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      border-radius: 5px; padding: 2px 8px;
+      font-size: 0.7rem; font-weight: 500; white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .badge-got_it    { background: var(--green-bg);  color: var(--green);  border-color: #4ade8025; }
+    .badge-one_x     { background: var(--orange-bg); color: var(--orange); border-color: #fb923c25; }
+    .badge-two_x     { background: var(--red-bg);    color: var(--red);    border-color: #f8717125; }
+    .badge-three_x   { background: var(--purple-bg); color: var(--purple); border-color: #c084fc25; }
+    .badge-skipped   { background: var(--slate-bg);  color: var(--slate);  border-color: #94a3b825; }
+
+    /* ── CARDS ── */
+    .paper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 24px; }
+
+    .paper-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px;
+      cursor: pointer; transition: all 0.18s;
+      display: flex; flex-direction: column; gap: 10px;
+      position: relative; overflow: hidden;
+    }
+    .paper-card::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--amber), transparent);
+      opacity: 0; transition: opacity 0.18s;
+    }
+    .paper-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 30px #00000050; }
+    .paper-card:hover::after { opacity: 1; }
+    .paper-card-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 600; color: var(--text);
+      line-height: 1.3;
+    }
+    .paper-card-meta { font-size: 0.7rem; color: var(--text3); display: flex; gap: 10px; }
+    .paper-card-stats { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+    .new-paper-card {
+      background: transparent;
+      border: 1px dashed var(--border2);
+      border-radius: 12px; padding: 20px;
+      cursor: pointer; transition: all 0.18s;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      color: var(--text3); font-size: 0.8rem;
+      min-height: 100px;
+    }
+    .new-paper-card:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+    .new-paper-card .plus { font-size: 1.4rem; line-height: 1; }
+
+    /* ── QUESTION LIST ── */
+    .paper-header { padding: 28px 0 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .paper-header-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem; font-weight: 700; color: var(--text);
+      letter-spacing: -0.02em; margin-bottom: 6px;
+    }
+    .paper-header-meta { font-size: 0.72rem; color: var(--text3); display: flex; gap: 16px; flex-wrap: wrap; }
+    .paper-header-meta span { display: flex; align-items: center; gap: 5px; }
+
+    .q-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .q-row {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+      display: grid; grid-template-columns: 48px 1fr auto;
+      gap: 12px; align-items: start;
+      transition: border-color 0.15s;
+    }
+    .q-row:hover { border-color: var(--border2); }
+    .q-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem; font-weight: 700; color: var(--text3);
+      line-height: 1.4;
+    }
+    .q-body { display: flex; flex-direction: column; gap: 6px; }
+    .q-topic { font-size: 0.78rem; color: var(--text2); }
+    .q-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .q-notes { font-size: 0.75rem; color: var(--text3); line-height: 1.5; margin-top: 4px; border-top: 1px solid var(--border); padding-top: 6px; }
+    .q-actions { display: flex; gap: 6px; }
+
+    /* ── FORMS ── */
+    .form-panel {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 24px; margin-bottom: 20px;
+      animation: slideDown 0.2s ease;
+    }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .form-title { font-size: 0.8rem; color: var(--amber); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 18px; }
+
+    .form-row { display: grid; gap: 14px; margin-bottom: 14px; }
+    .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+    label.field-label {
+      display: block; font-size: 0.65rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--text3); margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input[type=text], textarea, select {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text);
+      padding: 10px 14px; font-family: inherit; font-size: 0.85rem;
+      width: 100%; outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type=text]:focus, textarea:focus, select:focus { border-color: var(--amber); }
+    input::placeholder, textarea::placeholder { color: var(--text3); }
+    textarea { min-height: 80px; resize: vertical; }
+    select option { background: var(--bg2); }
+
+    .status-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .status-opt {
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 8px; padding: 10px 14px; cursor: pointer;
+      transition: all 0.15s; font-family: inherit; text-align: left;
+    }
+    .status-opt:hover { border-color: var(--border); }
+    .status-opt.active-got_it    { background: var(--green-bg);  border-color: var(--green);  }
+    .status-opt.active-one_x     { background: var(--orange-bg); border-color: var(--orange); }
+    .status-opt.active-two_x     { background: var(--red-bg);    border-color: var(--red);    }
+    .status-opt.active-three_x   { background: var(--purple-bg); border-color: var(--purple); }
+    .status-opt.active-skipped   { background: var(--slate-bg);  border-color: var(--slate);  }
+    .status-opt-label { font-size: 0.8rem; font-weight: 600; color: var(--text2); }
+    .status-opt.active-got_it .status-opt-label  { color: var(--green); }
+    .status-opt.active-one_x .status-opt-label   { color: var(--orange); }
+    .status-opt.active-two_x .status-opt-label   { color: var(--red); }
+    .status-opt.active-three_x .status-opt-label { color: var(--purple); }
+    .status-opt.active-skipped .status-opt-label { color: var(--slate); }
+    .status-opt-desc { font-size: 0.65rem; color: var(--text3); margin-top: 2px; }
+
+    .mistake-list { display: flex; flex-direction: column; gap: 6px; }
+    .mistake-opt {
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 8px; padding: 10px 14px; cursor: pointer;
+      transition: all 0.15s; font-family: inherit; text-align: left;
+      font-size: 0.78rem; color: var(--text2);
+    }
+    .mistake-opt:hover { border-color: var(--border); }
+    .mistake-opt.active { background: #1e1b35; border-color: var(--purple); color: var(--purple); }
+    .mistake-hint { font-size: 0.68rem; color: #7c3aed; margin-top: 3px; }
+
+    .hint-box {
+      background: #140e2e; border: 1px solid #3d2a6e;
+      border-radius: 8px; padding: 10px 14px;
+      font-size: 0.78rem; color: var(--purple); margin-top: 10px;
+    }
+    .hint-box strong { color: var(--amber); }
+
+    .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+    .btn-primary {
+      background: linear-gradient(135deg, #b07820, #e0962a);
+      border: none; color: #fff;
+      padding: 10px 22px; border-radius: 8px;
+      font-family: inherit; font-size: 0.82rem;
+      cursor: pointer; font-weight: 600;
+      transition: all 0.15s; box-shadow: 0 4px 16px #e0962a30;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px #e0962a40; }
+    .btn-primary:disabled { background: var(--bg3); color: var(--text3); cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-ghost {
+      background: transparent; border: 1px solid var(--border2);
+      color: var(--text3); padding: 10px 18px; border-radius: 8px;
+      font-family: inherit; font-size: 0.82rem; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-ghost:hover { border-color: var(--border); color: var(--text2); }
+    .btn-icon {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text3); border-radius: 6px; padding: 5px 10px;
+      font-family: inherit; font-size: 0.7rem; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-icon:hover { border-color: var(--border2); color: var(--text2); }
+    .btn-danger { border-color: #2d0a0a; }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── ADD Q BUTTON ── */
+    .add-q-btn {
+      background: transparent; border: 1px dashed var(--border2);
+      color: var(--text3); border-radius: 10px; padding: 14px;
+      font-family: inherit; font-size: 0.8rem; cursor: pointer;
+      transition: all 0.15s; width: 100%; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .add-q-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+    /* ── NAME SCREEN ── */
+    .name-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 40px 24px;
+    }
+    .name-card {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 20px; padding: 48px 40px; max-width: 420px; width: 100%;
+      text-align: center; box-shadow: 0 20px 60px #00000060;
+    }
+    .name-card h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em;
+    }
+    .name-card p { color: var(--text2); font-size: 0.82rem; margin-bottom: 28px; line-height: 1.6; }
+    .name-card input { margin-bottom: 14px; text-align: center; font-size: 1rem; }
+
+    /* ── TEACHER VIEW ── */
+    .teacher-header {
+      background: #0a0810; border: 1px solid #3d2a6e;
+      border-radius: 12px; padding: 16px 20px; margin: 20px 0;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .teacher-tag {
+      background: var(--purple-bg); color: var(--purple);
+      border: 1px solid #c084fc30; border-radius: 6px;
+      padding: 3px 10px; font-size: 0.7rem; letter-spacing: 0.1em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .teacher-subtitle { font-size: 0.75rem; color: var(--text2); }
+
+    .student-block {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 12px; overflow: hidden;
+    }
+    .student-block-header {
+      padding: 16px 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: background 0.15s;
+    }
+    .student-block-header:hover { background: var(--bg3); }
+    .student-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 600;
+    }
+    .student-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+    .student-papers { padding: 0 20px 16px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); }
+
+    .teacher-paper {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; margin-top: 10px;
+    }
+    .teacher-paper-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text2); }
+    .teacher-q-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 0.75rem; }
+    .teacher-q-row:last-child { border-bottom: none; }
+    .teacher-q-num { color: var(--text3); width: 40px; flex-shrink: 0; }
+    .teacher-q-topic { color: var(--text2); flex: 1; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: #00000090;
+      backdrop-filter: blur(4px); z-index: 200;
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 32px; max-width: 380px; width: 100%;
+      box-shadow: 0 24px 60px #00000080;
+      animation: slideDown 0.2s ease;
+    }
+    .modal h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem; margin-bottom: 8px;
+    }
+    .modal p { font-size: 0.8rem; color: var(--text2); margin-bottom: 20px; line-height: 1.6; }
+
+    /* ── EMPTY STATES ── */
+    .empty { text-align: center; padding: 60px 0; color: var(--text3); }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty p { font-size: 0.85rem; line-height: 1.7; }
+
+    /* ── SECTION LABELS ── */
+    .section-label {
+      font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--text3); margin-bottom: 14px; margin-top: 28px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── PROGRESS BAR ── */
+    .progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #b07820, #e0962a); border-radius: 2px; transition: width 0.5s; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+// ─────────────────────────────────────────────
+// 🔥 FIREBASE CONFIG — Replace with yours from
+//    Firebase Console → Project Settings → Your Apps
+// ─────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCYcEQF6pvH2wooI5u__AWaGLLgWGpl_mk",
+  authDomain:        "past-paper-tracker-8bc10.firebaseapp.com",
+  projectId:         "past-paper-tracker-8bc10",
+  storageBucket:     "past-paper-tracker-8bc10.firebasestorage.app",
+  messagingSenderId: "33410078760",
+  appId:             "1:33410078760:web:5b7516d48db796b435bd1d"
+};
+
+// ─────────────────────────────────────────────
+// 🔐 TEACHER PASSWORD — Change this!
+// ─────────────────────────────────────────────
+const TEACHER_PASSWORD = "changeme123";
+
+// ─────────────────────────────────────────────
+
+import { initializeApp }                        from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, addDoc,
+         getDocs, doc, updateDoc, deleteDoc,
+         query, where, orderBy, onSnapshot,
+         serverTimestamp, setDoc }              from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { createElement as h, useState,
+         useEffect, useRef }                    from 'https://esm.sh/react@18';
+import { createRoot }                           from 'https://esm.sh/react-dom@18/client';
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getFirestore(app);
+
+// ─── CONSTANTS ───────────────────────────────
+
+const STATUS_OPTIONS = [
+  { value: 'got_it',   label: '✅ Got it',              desc: 'Answered correctly',                    color: 'green'  },
+  { value: 'one_x',    label: '❌ Needed notes',         desc: 'Found notes, could answer — log in Mistakes Book', color: 'orange' },
+  { value: 'two_x',    label: '❌❌ Used mark scheme',   desc: 'Used mark scheme — log in Mistakes Book',           color: 'red'    },
+  { value: 'three_x',  label: '❌❌❌ Send to teacher', desc: 'Still unsure — screenshot to teacher',              color: 'purple' },
+  { value: 'skipped',  label: '⏭ Sketched / Skipped',  desc: 'Knew it, just sketched it out',         color: 'slate'  },
+];
+
+const MISTAKE_TYPES = [
+  { value: 'formula',           label: '📋 Forgot a formula',                        hint: 'Add to front cover of your Mistakes Book' },
+  { value: 'definition',        label: '📖 Didn\'t know a definition or key word',   hint: 'Write the word and definition at the back of your Mistakes Book' },
+  { value: 'mechanics',         label: '🔧 Knew the topic but got the maths wrong',  hint: 'Find drill questions (no context) and repeat until automatic' },
+  { value: 'no_recognition',    label: '🔍 Didn\'t recognise the topic at all',      hint: 'Look in the textbook for something that looks like the question' },
+  { value: 'partial_topic',     label: '🎯 Knew the topic but not which part',       hint: 'Underline key words and annotate any diagram with the hints it gives' },
+  { value: 'method',            label: '📝 Knew the topic but not how to structure it', hint: 'Find a similar example, annotate each line, then write a step-by-step guide' },
+  { value: 'unforced',          label: '🤦 Unforced error (sign / arithmetic / handwriting)', hint: 'Reflect: were you skipping steps? Was your working unclear?' },
+];
+
+const NEEDS_MISTAKE = s => s && s !== 'got_it' && s !== 'skipped';
+
+// ─── FIREBASE HELPERS ───────────────────────
+
+async function getPapers(studentName) {
+  const q = query(collection(db, 'papers'), where('studentName', '==', studentName), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getAllPapers() {
+  const snap = await getDocs(query(collection(db, 'papers'), orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function addPaper(studentName, title) {
+  return await addDoc(collection(db, 'papers'), {
+    studentName, title, questions: [], createdAt: serverTimestamp()
+  });
+}
+
+async function updatePaper(paperId, data) {
+  await updateDoc(doc(db, 'papers', paperId), data);
+}
+
+async function deletePaper(paperId) {
+  await deleteDoc(doc(db, 'papers', paperId));
+}
+
+// ─── COMPONENTS ─────────────────────────────
+
+function Badge({ status }) {
+  const opt = STATUS_OPTIONS.find(s => s.value === status);
+  if (!opt) return null;
+  return h('span', { className: `badge badge-${status}` }, opt.label);
+}
+
+function MistakeBadge({ type }) {
+  const opt = MISTAKE_TYPES.find(m => m.value === type);
+  if (!opt) return null;
+  return h('span', { className: 'badge', style: { background:'#1e1b35', color:'#c084fc', borderColor:'#c084fc25' } }, opt.label);
+}
+
+function StatChip({ count, color, label }) {
+  if (!count) return null;
+  return h('span', { className: `badge badge-${color}`, style:{ fontSize:'0.65rem' } }, `${count} ${label}`);
+}
+
+// ─── NAME SCREEN ─────────────────────────────
+
+function NameScreen({ onConfirm }) {
+  const [name, setName] = useState('');
+  const confirm = () => { if (name.trim()) onConfirm(name.trim()); };
+  return h('div', { className: 'name-screen' },
+    h('div', { className: 'name-card' },
+      h('h1', null, 'Past Paper Tracker'),
+      h('p', null, 'Year 13 Maths Revision\nEnter your name to access your papers and mistakes log.'),
+      h('input', {
+        type: 'text', placeholder: 'Your name…', value: name,
+        onChange: e => setName(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && confirm(),
+        autoFocus: true,
+      }),
+      h('button', { className: 'btn-primary', style:{ width:'100%' }, onClick: confirm, disabled: !name.trim() }, 'Get started →')
+    )
+  );
+}
+
+// ─── TEACHER PASSWORD MODAL ───────────────────
+
+function TeacherModal({ onSuccess, onClose }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+  const attempt = () => {
+    if (pw === TEACHER_PASSWORD) { onSuccess(); }
+    else { setErr(true); setPw(''); }
+  };
+  return h('div', { className: 'modal-overlay', onClick: onClose },
+    h('div', { className: 'modal', onClick: e => e.stopPropagation() },
+      h('h3', null, '🔐 Teacher Access'),
+      h('p', null, 'Enter your teacher password to view the class dashboard.'),
+      h('input', {
+        type: 'password', placeholder: 'Password…', value: pw,
+        onChange: e => { setPw(e.target.value); setErr(false); },
+        onKeyDown: e => e.key === 'Enter' && attempt(),
+        autoFocus: true,
+        style: err ? { borderColor: 'var(--red)' } : {},
+      }),
+      err && h('p', { style:{ color:'var(--red)', fontSize:'0.75rem', marginTop:6 } }, 'Incorrect password'),
+      h('div', { className: 'btn-row', style:{ marginTop: 16 } },
+        h('button', { className: 'btn-primary', onClick: attempt }, 'Unlock'),
+        h('button', { className: 'btn-ghost', onClick: onClose }, 'Cancel'),
+      )
+    )
+  );
+}
+
+// ─── NEW PAPER MODAL ─────────────────────────
+
+function NewPaperModal({ onConfirm, onClose }) {
+  const [title, setTitle] = useState('');
+  const confirm = () => { if (title.trim()) onConfirm(title.trim()); };
+  return h('div', { className: 'modal-overlay', onClick: onClose },
+    h('div', { className: 'modal', onClick: e => e.stopPropagation() },
+      h('h3', null, '📄 Start a new paper'),
+      h('p', null, 'Give this paper a title — e.g. "June 2023 Paper 1" or "Mock Nov 2024".'),
+      h('input', {
+        type: 'text', placeholder: 'e.g. June 2023 Paper 1',
+        value: title, onChange: e => setTitle(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && confirm(),
+        autoFocus: true,
+      }),
+      h('div', { className: 'btn-row', style:{ marginTop:16 } },
+        h('button', { className: 'btn-primary', disabled: !title.trim(), onClick: confirm }, 'Start paper'),
+        h('button', { className: 'btn-ghost', onClick: onClose }, 'Cancel'),
+      )
+    )
+  );
+}
+
+// ─── QUESTION FORM ────────────────────────────
+
+function QuestionForm({ existing, nextNum, onSave, onCancel }) {
+  const [num,         setNum]         = useState(existing?.num         || nextNum || '');
+  const [topic,       setTopic]       = useState(existing?.topic       || '');
+  const [status,      setStatus]      = useState(existing?.status      || '');
+  const [mistakeType, setMistakeType] = useState(existing?.mistakeType || '');
+  const [notes,       setNotes]       = useState(existing?.notes       || '');
+
+  const needsMistake = NEEDS_MISTAKE(status);
+  const mistakeOpt = MISTAKE_TYPES.find(m => m.value === mistakeType);
+  const canSave = num && status && (!needsMistake || mistakeType);
+
+  const save = () => {
+    if (!canSave) return;
+    onSave({ num, topic, status, mistakeType: needsMistake ? mistakeType : '', notes });
+  };
+
+  return h('div', { className: 'form-panel' },
+    h('div', { className: 'form-title' }, existing ? '✏️ Edit Question' : '➕ Log Question'),
+
+    h('div', { className: 'form-row cols-2' },
+      h('div', null,
+        h('label', { className: 'field-label' }, 'Question'),
+        h('input', { type:'text', placeholder:'e.g. 4b', value: num, onChange: e => setNum(e.target.value) })
+      ),
+      h('div', null,
+        h('label', { className: 'field-label' }, 'Topic (optional)'),
+        h('input', { type:'text', placeholder:'e.g. Integration by parts', value: topic, onChange: e => setTopic(e.target.value) })
+      ),
+    ),
+
+    h('div', { style:{ marginBottom: 14 } },
+      h('label', { className: 'field-label' }, 'How did it go?'),
+      h('div', { className: 'status-grid' },
+        STATUS_OPTIONS.map(opt =>
+          h('button', {
+            key: opt.value,
+            className: `status-opt ${status === opt.value ? `active-${opt.value}` : ''}`,
+            onClick: () => { setStatus(opt.value); if (opt.value === 'got_it' || opt.value === 'skipped') setMistakeType(''); }
+          },
+            h('div', { className: 'status-opt-label' }, opt.label),
+            h('div', { className: 'status-opt-desc' }, opt.desc),
+          )
+        )
+      )
+    ),
+
+    needsMistake && h('div', { style:{ marginBottom: 14 } },
+      h('label', { className: 'field-label' }, 'What kind of mistake?'),
+      h('div', { className: 'mistake-list' },
+        MISTAKE_TYPES.map(opt =>
+          h('button', {
+            key: opt.value,
+            className: `mistake-opt ${mistakeType === opt.value ? 'active' : ''}`,
+            onClick: () => setMistakeType(opt.value),
+          },
+            opt.label,
+            mistakeType === opt.value && h('div', { className: 'mistake-hint' }, '→ ', opt.hint)
+          )
+        )
+      )
+    ),
+
+    mistakeOpt && h('div', { className: 'hint-box', style:{ marginBottom: 14 } },
+      h('strong', null, 'Action: '), mistakeOpt.hint
+    ),
+
+    h('div', { style:{ marginBottom: 4 } },
+      h('label', { className: 'field-label' }, 'Notes (what did you miss?)'),
+      h('textarea', { placeholder:'e.g. Forgot to use chain rule on the inside function. Adding to Mistakes Book.',
+        value: notes, onChange: e => setNotes(e.target.value) })
+    ),
+
+    h('div', { className: 'btn-row' },
+      h('button', { className: 'btn-primary', disabled: !canSave, onClick: save }, existing ? 'Save changes' : 'Log question'),
+      h('button', { className: 'btn-ghost', onClick: onCancel }, 'Cancel'),
+    )
+  );
+}
+
+// ─── PAPER VIEW ───────────────────────────────
+
+function PaperView({ paper, onBack, onUpdate }) {
+  const [showForm,  setShowForm]  = useState(false);
+  const [editIndex, setEditIndex] = useState(null);
+  const qs = paper.questions || [];
+
+  const counts = {};
+  STATUS_OPTIONS.forEach(s => counts[s.value] = qs.filter(q => q.status === s.value).length);
+  const pct = qs.length ? Math.round((counts.got_it + counts.skipped) / qs.length * 100) : 0;
+
+  const nextNum = qs.length > 0 ? String(Number(qs[qs.length-1].num?.replace(/\D/g,'') || 0) + 1) : '1';
+
+  async function saveQuestion(qData) {
+    let newQs;
+    if (editIndex !== null) {
+      newQs = qs.map((q,i) => i === editIndex ? qData : q);
+    } else {
+      newQs = [...qs, qData];
+    }
+    await updatePaper(paper.id, { questions: newQs });
+    onUpdate({ ...paper, questions: newQs });
+    setShowForm(false); setEditIndex(null);
+  }
+
+  async function deleteQuestion(i) {
+    const newQs = qs.filter((_,idx) => idx !== i);
+    await updatePaper(paper.id, { questions: newQs });
+    onUpdate({ ...paper, questions: newQs });
+  }
+
+  const editing = editIndex !== null ? qs[editIndex] : null;
+
+  return h('div', null,
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { className: 'topbar-left' },
+          h('button', { className: 'back-btn', onClick: onBack }, '← Papers'),
+          h('div', { className: 'brand' },
+            h('div', { className: 'brand-title' }, paper.title),
+            h('div', { className: 'brand-sub' }, `${qs.length} question${qs.length !== 1 ? 's' : ''} logged`),
+          ),
+        ),
+      )
+    ),
+
+    h('div', { className: 'container' },
+      qs.length > 0 && h('div', { style:{ marginTop: 24, marginBottom: 8 } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:'0.7rem', color:'var(--text3)', marginBottom:6 } },
+          h('span', null, `${pct}% correct or sketched`),
+          h('span', null, `${qs.length} questions`),
+        ),
+        h('div', { className: 'progress-bar' },
+          h('div', { className: 'progress-fill', style:{ width: `${pct}%` } })
+        ),
+        h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 } },
+          STATUS_OPTIONS.map(s => counts[s.value] > 0 &&
+            h('span', { key: s.value, className: `badge badge-${s.value}` }, `${counts[s.value]} ${s.label}`)
+          )
+        )
+      ),
+
+      (showForm || editIndex !== null) && h(QuestionForm, {
+        existing: editing,
+        nextNum,
+        onSave: saveQuestion,
+        onCancel: () => { setShowForm(false); setEditIndex(null); }
+      }),
+
+      h('div', { className: 'section-label', style:{ marginTop: showForm ? 0 : 24 } }, 'Questions'),
+
+      qs.length === 0
+        ? h('div', { className: 'empty' },
+            h('div', { className: 'empty-icon' }, '📝'),
+            h('p', null, 'No questions logged yet.\nUse the button below to start marking through this paper.')
+          )
+        : h('div', { className: 'q-list' },
+            qs.map((q, i) => {
+              const mOpt = MISTAKE_TYPES.find(m => m.value === q.mistakeType);
+              return h('div', { key: i, className: 'q-row' },
+                h('div', { className: 'q-num' }, `Q${q.num}`),
+                h('div', { className: 'q-body' },
+                  q.topic && h('div', { className: 'q-topic' }, q.topic),
+                  h('div', { className: 'q-badges' },
+                    h(Badge, { status: q.status }),
+                    q.mistakeType && h(MistakeBadge, { type: q.mistakeType }),
+                  ),
+                  q.notes && h('div', { className: 'q-notes' }, q.notes),
+                ),
+                h('div', { className: 'q-actions' },
+                  h('button', { className: 'btn-icon', onClick: () => { setEditIndex(i); setShowForm(false); } }, 'edit'),
+                  h('button', { className: 'btn-icon btn-danger', onClick: () => deleteQuestion(i) }, '✕'),
+                )
+              );
+            })
+          ),
+
+      !showForm && editIndex === null && h('button', {
+        className: 'add-q-btn', style:{ marginTop: 12 },
+        onClick: () => { setShowForm(true); setEditIndex(null); }
+      }, h('span', null, '+'), ' Log a question'),
+    )
+  );
+}
+
+// ─── PAPERS LIST ──────────────────────────────
+
+function PapersList({ studentName, papers, onSelectPaper, onNewPaper, onTeacher, onChangeName }) {
+  return h('div', null,
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { className: 'topbar-left' },
+          h('div', { className: 'brand' },
+            h('div', { className: 'brand-title' }, 'Past Paper Tracker'),
+            h('div', { className: 'brand-sub' }, 'Year 13 Revision'),
+          ),
+          h('div', { className: 'student-chip' }, studentName),
+        ),
+        h('div', { style:{ display:'flex', gap:8 } },
+          h('button', { className: 'btn-ghost', style:{ fontSize:'0.7rem', padding:'6px 10px' }, onClick: onChangeName }, 'change name'),
+          h('button', { className: 'teacher-btn', onClick: onTeacher }, 'Teacher'),
+        )
+      )
+    ),
+
+    h('div', { className: 'container' },
+      h('div', { className: 'section-label' }, 'Your papers'),
+
+      papers.length === 0
+        ? h('div', { className: 'empty', style:{ paddingTop:40 } },
+            h('div', { className: 'empty-icon' }, '📄'),
+            h('p', null, 'No papers yet.\nClick "Start a new paper" below to begin.\nRemember: work through the whole paper before checking the mark scheme!')
+          )
+        : h('div', { className: 'paper-grid' },
+            papers.map(p => {
+              const qs = p.questions || [];
+              const counts = {};
+              STATUS_OPTIONS.forEach(s => counts[s.value] = qs.filter(q => q.status === s.value).length);
+              const errors = (counts.one_x||0) + (counts.two_x||0) + (counts.three_x||0);
+              const date = p.createdAt?.toDate?.()?.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'2-digit' }) || '';
+              return h('div', { key: p.id, className: 'paper-card', onClick: () => onSelectPaper(p) },
+                h('div', { className: 'paper-card-title' }, p.title),
+                h('div', { className: 'paper-card-meta' },
+                  h('span', null, `${qs.length} questions`),
+                  date && h('span', null, date),
+                ),
+                h('div', { className: 'paper-card-stats' },
+                  counts.got_it   > 0 && h('span', { className:'badge badge-got_it',  style:{fontSize:'0.65rem'} }, `${counts.got_it} ✅`),
+                  errors          > 0 && h('span', { className:'badge badge-two_x',   style:{fontSize:'0.65rem'} }, `${errors} ❌`),
+                  counts.three_x  > 0 && h('span', { className:'badge badge-three_x', style:{fontSize:'0.65rem'} }, `${counts.three_x} ❌❌❌`),
+                ),
+              );
+            })
+          ),
+
+      h('div', { className: 'new-paper-card', style:{ marginTop: papers.length ? 14 : 0 }, onClick: onNewPaper },
+        h('span', { className: 'plus' }, '+'),
+        'Start a new paper'
+      ),
+    )
+  );
+}
+
+// ─── TEACHER DASHBOARD ────────────────────────
+
+function TeacherDashboard({ onClose }) {
+  const [papers,    setPapers]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [expanded,  setExpanded]  = useState({});
+
+  useEffect(() => {
+    getAllPapers().then(p => { setPapers(p); setLoading(false); });
+  }, []);
+
+  const byStudent = {};
+  papers.forEach(p => {
+    if (!byStudent[p.studentName]) byStudent[p.studentName] = [];
+    byStudent[p.studentName].push(p);
+  });
+
+  const toggle = name => setExpanded(e => ({ ...e, [name]: !e[name] }));
+
+  return h('div', null,
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { className: 'topbar-left' },
+          h('button', { className: 'back-btn', onClick: onClose }, '← Back'),
+          h('div', { className: 'brand' },
+            h('div', { className: 'brand-title' }, 'Class Dashboard'),
+            h('div', { className: 'brand-sub' }, 'Teacher View'),
+          ),
+        ),
+        h('div', { className: 'teacher-tag' }, '🔐 Teacher'),
+      )
+    ),
+
+    h('div', { className: 'container' },
+      h('div', { className: 'section-label' }, `${Object.keys(byStudent).length} students`),
+
+      loading
+        ? h('div', { className: 'empty' }, h('p', null, 'Loading…'))
+        : Object.keys(byStudent).length === 0
+          ? h('div', { className: 'empty' },
+              h('div', { className: 'empty-icon' }, '📊'),
+              h('p', null, 'No student data yet.')
+            )
+          : Object.entries(byStudent).map(([name, stuPapers]) => {
+              const allQs = stuPapers.flatMap(p => p.questions || []);
+              const counts = {};
+              STATUS_OPTIONS.forEach(s => counts[s.value] = allQs.filter(q => q.status === s.value).length);
+              const isOpen = expanded[name];
+
+              return h('div', { key: name, className: 'student-block' },
+                h('div', { className: 'student-block-header', onClick: () => toggle(name) },
+                  h('div', null,
+                    h('div', { className: 'student-name' }, name),
+                    h('div', { style:{ fontSize:'0.7rem', color:'var(--text3)', marginTop:2 } }, `${stuPapers.length} paper${stuPapers.length !== 1 ? 's' : ''} · ${allQs.length} questions`),
+                  ),
+                  h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' } },
+                    STATUS_OPTIONS.map(s => counts[s.value] > 0 &&
+                      h('span', { key: s.value, className: `badge badge-${s.value}`, style:{fontSize:'0.65rem'} }, `${counts[s.value]}`)
+                    ),
+                    h('span', { style:{ color:'var(--text3)', marginLeft:4 } }, isOpen ? '▲' : '▼'),
+                  )
+                ),
+
+                isOpen && h('div', { className: 'student-papers' },
+                  stuPapers.map(p => {
+                    const qs = p.questions || [];
+                    return h('div', { key: p.id, className: 'teacher-paper' },
+                      h('div', { className: 'teacher-paper-title' }, p.title,
+                        h('span', { style:{ color:'var(--text3)', fontWeight:400, marginLeft:8 } }, `(${qs.length}q)`)
+                      ),
+                      qs.filter(q => q.status !== 'got_it' && q.status !== 'skipped').map((q, i) =>
+                        h('div', { key: i, className: 'teacher-q-row' },
+                          h('div', { className: 'teacher-q-num' }, `Q${q.num}`),
+                          h('div', { className: 'teacher-q-topic' }, q.topic || '—'),
+                          h(Badge, { status: q.status }),
+                          q.mistakeType && h(MistakeBadge, { type: q.mistakeType }),
+                        )
+                      ),
+                      qs.every(q => q.status === 'got_it' || q.status === 'skipped') &&
+                        h('div', { style:{ fontSize:'0.75rem', color:'var(--green)', padding:'4px 0' } }, '✅ All correct or sketched'),
+                    );
+                  })
+                )
+              );
+            })
+    )
+  );
+}
+
+// ─── APP ROOT ────────────────────────────────
+
+function App() {
+  const [studentName,   setStudentName]   = useState(() => localStorage.getItem('ppt-name') || '');
+  const [papers,        setPapers]        = useState([]);
+  const [currentPaper,  setCurrentPaper]  = useState(null);
+  const [loading,       setLoading]       = useState(false);
+  const [showNewPaper,  setShowNewPaper]  = useState(false);
+  const [showTeacher,   setShowTeacher]   = useState(false);
+  const [isTeacher,     setIsTeacher]     = useState(false);
+
+  const loadPapers = async (name) => {
+    setLoading(true);
+    const p = await getPapers(name);
+    setPapers(p);
+    setLoading(false);
+  };
+
+  const handleNameConfirm = (name) => {
+    localStorage.setItem('ppt-name', name);
+    setStudentName(name);
+  };
+
+  useEffect(() => {
+    if (studentName) loadPapers(studentName);
+  }, [studentName]);
+
+  const handleNewPaper = async (title) => {
+    const ref = await addPaper(studentName, title);
+    const newPaper = { id: ref.id, studentName, title, questions: [] };
+    setPapers(prev => [newPaper, ...prev]);
+    setCurrentPaper(newPaper);
+    setShowNewPaper(false);
+  };
+
+  const handlePaperUpdate = (updated) => {
+    setPapers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setCurrentPaper(updated);
+  };
+
+  if (!studentName) return h(NameScreen, { onConfirm: handleNameConfirm });
+  if (isTeacher)    return h(TeacherDashboard, { onClose: () => setIsTeacher(false) });
+
+  if (currentPaper) return h('div', null,
+    h(PaperView, {
+      paper: currentPaper,
+      onBack: () => { setCurrentPaper(null); loadPapers(studentName); },
+      onUpdate: handlePaperUpdate,
+    })
+  );
+
+  return h('div', null,
+    showNewPaper && h(NewPaperModal, {
+      onConfirm: handleNewPaper,
+      onClose: () => setShowNewPaper(false),
+    }),
+    showTeacher && h(TeacherModal, {
+      onSuccess: () => { setIsTeacher(true); setShowTeacher(false); },
+      onClose:   () => setShowTeacher(false),
+    }),
+    h(PapersList, {
+      studentName,
+      papers,
+      onSelectPaper: setCurrentPaper,
+      onNewPaper:    () => setShowNewPaper(true),
+      onTeacher:     () => setShowTeacher(true),
+      onChangeName:  () => { localStorage.removeItem('ppt-name'); setStudentName(''); setPapers([]); },
+    })
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
