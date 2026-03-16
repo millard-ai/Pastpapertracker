@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past Paper Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <!--
+    API KEY NOTE: Firebase web keys are public by design — security comes from
+    Firestore rules. To restrict this key to your domain only:
+    1. https://console.cloud.google.com/apis/credentials
+    2. Click the key → Application restrictions → Websites
+    3. Add https://yourusername.github.io/*
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0f; --bg2: #13131a; --bg3: #1a1a24;
+      --border: #24243a; --border2: #2e2e48;
+      --text: #e8e6f0; --text2: #b0aec8; --text3: #706e88;
+      --amber: #d08020; --amberlt: #1e1408;
+      --green: #3aad60; --greenlt: #071a0e;
+      --orange: #e07830; --ornglt: #1e0e04;
+      --red: #d04040; --redlt: #1e0808;
+      --purple: #9858d8; --purplt: #140820;
+      --slate: #8898b0; --slatlt: #0c1018;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'DM Mono', monospace; font-size: 14px; }
+    #root { min-height: 100vh; }
+
+    .topbar { position: sticky; top: 0; z-index: 50;
+      background: #0d0d0fdd; backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); padding: 14px 24px; }
+    .topbar-inner { max-width: 820px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .container { max-width: 820px; margin: 0 auto; padding: 24px 24px 80px; }
+
+    .btn { border: none; border-radius: 8px; font-family: inherit;
+      cursor: pointer; font-weight: 600; transition: all .15s; }
+    .btn-primary { background: linear-gradient(135deg,#8840c0,#a860e0);
+      color: #fff; padding: 11px 24px; font-size: .85rem;
+      box-shadow: 0 4px 16px #9858d820; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px #9858d830; }
+    .btn-primary:disabled { background: var(--bg3); color: var(--text3);
+      cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border2);
+      color: var(--text2); padding: 8px 16px; font-size: .78rem; border-radius: 8px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-ghost:hover { border-color: var(--border); color: var(--text); }
+    .btn-back { background: transparent; border: 1px solid var(--border2);
+      color: var(--text2); padding: 6px 12px; font-size: .75rem; border-radius: 6px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-back:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-danger { background: transparent; border: 1px solid #4a1a1a;
+      color: var(--red); padding: 8px 16px; font-size: .78rem; border-radius: 8px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-danger:hover { border-color: var(--red); background: var(--redlt); }
+
+    input[type=text], input[type=number], input[type=password] {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text); padding: 10px 14px;
+      font-family: inherit; font-size: .9rem; width: 100%; outline: none;
+      transition: border-color .15s; }
+    input:focus { border-color: var(--amber); }
+    input::placeholder { color: var(--text3); }
+    label.lbl { display: block; font-size: .62rem; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+
+    .panel { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 24px; animation: fadeUp .2s ease; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    .overlay { position: fixed; inset: 0; background: #00000090;
+      backdrop-filter: blur(4px); z-index: 200;
+      display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .modal { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 32px; max-width: 440px; width: 100%;
+      animation: fadeUp .2s ease; }
+    .modal h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; margin-bottom: 8px; }
+    .modal p { font-size: .82rem; color: var(--text2); margin-bottom: 20px; line-height: 1.7; }
+
+    .name-screen { min-height: 100vh; display: flex;
+      align-items: center; justify-content: center; padding: 40px 24px; }
+    .name-card { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 20px; padding: 48px 40px; max-width: 400px; width: 100%;
+      text-align: center; box-shadow: 0 20px 60px #00000060; }
+    .name-card h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 8px; }
+    .name-card p { color: var(--text2); font-size: .85rem; margin-bottom: 28px; line-height: 1.7; }
+
+    .brand-title { font-family: 'Playfair Display', serif; font-size: 1.05rem; font-weight: 600; }
+    .brand-sub { font-size: .65rem; color: var(--text2); letter-spacing: .1em; text-transform: uppercase; }
+    .student-chip { background: #1a1408; border: 1px solid #3a2010;
+      color: var(--amber); border-radius: 20px; padding: 3px 12px; font-size: .72rem; }
+    .teacher-btn { background: transparent; border: 1px solid var(--border);
+      color: var(--text2); padding: 6px 12px; border-radius: 6px;
+      font-family: inherit; font-size: .7rem; cursor: pointer;
+      text-transform: uppercase; letter-spacing: .08em; transition: all .15s; }
+    .teacher-btn:hover { color: var(--text); border-color: var(--border2); }
+    .teacher-tag { background: #140820; color: var(--purple);
+      border: 1px solid #9858d830; border-radius: 6px;
+      padding: 3px 10px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+
+    .sec-lbl { font-size: .65rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--text2); margin-bottom: 14px; margin-top: 28px;
+      display: flex; align-items: center; gap: 10px; }
+    .sec-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .tab-bar { display: flex; gap: 2px; background: #100e1f; border-radius: 8px;
+      padding: 3px; border: 1px solid var(--border); margin-bottom: 4px; }
+    .tab-btn { background: transparent; border: none; color: var(--text3);
+      padding: 7px 18px; border-radius: 6px; font-family: inherit; font-size: .7rem;
+      cursor: pointer; text-transform: uppercase; letter-spacing: .09em;
+      font-weight: 600; transition: all .15s; }
+    .tab-btn:hover { color: var(--text2); }
+    .tab-btn.active { background: #1e1830; color: var(--amber); }
+
+    .phase-pill { display: inline-flex; align-items: center; gap: 5px;
+      font-size: .68rem; padding: 3px 10px; border-radius: 12px;
+      font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    .phase-during   { background: #071a0e; color: var(--green);  border: 1px solid #1a4828; }
+    .phase-marking  { background: #1e0808; color: var(--red);    border: 1px solid #4a1a1a; }
+    .phase-complete { background: #14081e; color: var(--purple); border: 1px solid #3a1870; }
+
+    .paper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; margin-top: 16px; }
+    .paper-card { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; cursor: pointer; transition: all .18s;
+      position: relative; overflow: hidden; }
+    .paper-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px; background: linear-gradient(90deg,var(--amber),transparent);
+      opacity: 0; transition: opacity .18s; }
+    .paper-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 30px #00000050; }
+    .paper-card:hover::after { opacity: 1; }
+    .paper-card-title { font-family: 'Playfair Display', serif; font-size: .95rem; font-weight: 600; margin-bottom: 4px; }
+    .paper-card-meta { font-size: .7rem; color: var(--text2); margin-bottom: 8px; }
+    .new-paper-btn { background: transparent; border: 1px dashed var(--border2);
+      border-radius: 12px; padding: 18px; cursor: pointer; transition: all .18s;
+      color: var(--text2); font-size: .82rem; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 80px; }
+    .new-paper-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amberlt); }
+
+    /* Question grid nav */
+    .q-grid-nav { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+    .q-grid-btn { min-width: 34px; height: 34px; padding: 0 6px; border-radius: 6px;
+      border: 1.5px solid var(--border2); background: var(--bg);
+      color: var(--text2); font-family: inherit; font-size: .7rem; font-weight: 600;
+      cursor: pointer; transition: all .12s; display: flex; align-items: center; justify-content: center; }
+    .q-grid-btn:hover { border-color: var(--amber); color: var(--amber); }
+    .q-grid-btn.current  { border-color: var(--amber); background: var(--amberlt); color: var(--amber); }
+    .q-grid-btn.done-green  { background: var(--greenlt); border-color: var(--green); color: var(--green); }
+    .q-grid-btn.done-orange { background: var(--ornglt);  border-color: var(--orange); color: var(--orange); }
+    .q-grid-btn.done-purple { background: var(--purplt);  border-color: var(--purple); color: var(--purple); }
+    .q-grid-btn.done-red    { background: var(--redlt);   border-color: var(--red);    color: var(--red); }
+    .q-grid-btn.m-correct   { background: var(--greenlt); border-color: var(--green);  color: var(--green); }
+    .q-grid-btn.m-wrong     { background: var(--redlt);   border-color: var(--red);    color: var(--red); }
+    .q-grid-btn.m-todo      { background: var(--purplt);  border-color: var(--purple); color: var(--purple); }
+
+    /* Option buttons */
+    .option-btn { display: flex; align-items: flex-start; gap: 14px;
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 12px; padding: 14px 16px; cursor: pointer;
+      transition: all .15s; font-family: inherit; text-align: left; width: 100%; margin-bottom: 8px; }
+    .option-btn:hover { border-color: var(--border); background: var(--bg3); }
+    .option-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .option-main { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .option-sub  { font-size: .74rem; margin-top: 3px; color: var(--text2); }
+    .opt-green  { border-color: var(--green)!important;  background: var(--greenlt)!important; }
+    .opt-orange { border-color: var(--orange)!important; background: var(--ornglt)!important;  }
+    .opt-purple { border-color: var(--purple)!important; background: var(--purplt)!important;  }
+    .opt-red    { border-color: var(--red)!important;    background: var(--redlt)!important;   }
+    .opt-slate  { border-color: var(--slate)!important;  background: var(--slatlt)!important;  }
+    .opt-amber  { border-color: var(--amber)!important;  background: var(--amberlt)!important; }
+
+    /* Mistake category buttons */
+    .mcat-btn { display: flex; align-items: flex-start; gap: 12px;
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 10px; padding: 14px; cursor: pointer; transition: all .15s;
+      font-family: inherit; text-align: left; width: 100%; margin-bottom: 8px; }
+    .mcat-btn:hover { border-color: var(--border); background: var(--bg3); }
+    .mcat-btn.expanded { border-color: var(--amber); background: var(--amberlt); }
+    .mcat-num { font-family: 'Playfair Display', serif; font-size: 1.2rem;
+      font-weight: 700; color: var(--text3); flex-shrink: 0; width: 22px; }
+    .mcat-title { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .mcat-desc  { font-size: .74rem; color: var(--text2); margin-top: 3px; }
+
+    .msub-section { background: var(--bg3); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .msub-label { font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--amber); margin-bottom: 10px; font-weight: 600; }
+    .msub-btn { display: flex; align-items: flex-start; gap: 10px;
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all .15s;
+      font-family: inherit; text-align: left; width: 100%; margin-bottom: 6px; }
+    .msub-btn:hover { border-color: var(--amber); }
+    .msub-letter { font-weight: 700; font-size: .9rem; color: var(--amber); width: 16px; flex-shrink: 0; }
+    .msub-title  { font-size: .84rem; font-weight: 600; color: var(--text); }
+    .msub-action { font-size: .72rem; color: var(--text2); margin-top: 3px; }
+
+    /* Q hero */
+    .q-hero { font-family: 'Playfair Display', serif;
+      font-size: 3.5rem; font-weight: 700; color: var(--text3); line-height: 1;
+      text-align: center; padding: 12px 0 10px; }
+
+    /* Splash screen */
+    .splash { padding: 24px 0; animation: fadeUp .2s ease; }
+    .splash-head { font-family: 'Playfair Display', serif; font-size: 1.5rem;
+      font-weight: 700; margin-bottom: 8px; }
+    .splash-sub { font-size: .85rem; color: var(--text2); margin-bottom: 24px; line-height: 1.6; }
+    .splash-section { margin-bottom: 20px; }
+    .splash-section-title { font-size: .65rem; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--text2); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px; }
+    .splash-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .splash-q-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .splash-q-btn { min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px;
+      border: 1.5px solid; font-family: inherit; font-size: .78rem; font-weight: 600;
+      cursor: pointer; transition: all .12s; display: flex; align-items: center; justify-content: center; }
+    .splash-q-btn.answered { background: var(--bg2); border-color: var(--border2); color: var(--text2); }
+    .splash-q-btn.answered:hover { border-color: var(--amber); color: var(--amber); }
+    .splash-q-btn.skipped  { background: var(--redlt); border-color: var(--red); color: #e07070; }
+    .splash-q-btn.skipped:hover { background: #2d1010; }
+    .splash-buttons { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+
+    /* Progress bar */
+    .prog-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 3px; transition: width .4s;
+      background: linear-gradient(90deg,var(--amber),#e8a040); }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px;
+      border-radius: 5px; padding: 2px 8px; font-size: .68rem; font-weight: 600;
+      border: 1px solid transparent; white-space: nowrap; }
+    .badge-green  { background: var(--greenlt); color: #6ad890; border-color: #1a4828; }
+    .badge-orange { background: var(--ornglt);  color: #e8a060; border-color: #4a2010; }
+    .badge-purple { background: var(--purplt);  color: #b888e8; border-color: #3a1870; }
+    .badge-red    { background: var(--redlt);   color: #e07070; border-color: #4a1a1a; }
+    .badge-slate  { background: var(--slatlt);  color: var(--slate); border-color: #283040; }
+    .badge-amber  { background: var(--amberlt); color: #e0a040; border-color: #3a2010; }
+
+    .q-during-badge { display: inline-flex; align-items: center; gap: 5px;
+      font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+    /* Report */
+    .report-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(90px,1fr));
+      gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; text-align: center; }
+    .stat-num { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-lbl { font-size: .6rem; color: var(--text2); margin-top: 4px;
+      text-transform: uppercase; letter-spacing: .08em; }
+    .report-group { margin-bottom: 24px; }
+    .report-group-head { font-size: .65rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--text2); margin-bottom: 10px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+    .report-group-subtitle { color: var(--text3); font-size: .62rem; }
+    .report-item { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; transition: opacity .2s; }
+    .report-item.done { opacity: .45; }
+    .report-item.done .report-action { text-decoration: line-through; }
+    .report-item-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .report-action { font-size: .78rem; color: var(--text2); line-height: 1.5; }
+    .report-action::before { content: '→  '; color: var(--amber); font-weight: 700; }
+    .action-tick { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+      border: 1.5px solid var(--border2); background: var(--bg);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all .15s; font-size: .8rem; color: var(--green); }
+    .action-tick:hover { border-color: var(--green); }
+    .action-tick.ticked { background: var(--greenlt); border-color: var(--green); }
+
+    /* Teacher */
+    .student-block { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+    .student-block-hdr { padding: 14px 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; transition: background .15s; }
+    .student-block-hdr:hover { background: var(--bg3); }
+    .student-name { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; }
+    .student-body { padding: 0 18px 14px; border-top: 1px solid var(--border); }
+    .teacher-paper { background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+    .teacher-paper-title { font-size: .82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+    .teacher-q { display: flex; gap: 8px; align-items: center; font-size: .72rem;
+      padding: 3px 0; border-bottom: 1px solid var(--border); }
+    .teacher-q:last-child { border: none; }
+    .teacher-q-num { color: var(--text3); width: 40px; flex-shrink: 0; }
+
+    .empty { text-align: center; padding: 60px 0; color: var(--text2); }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty p { font-size: .85rem; line-height: 1.7; }
+
+    .error-banner { background: var(--redlt); border: 1px solid var(--red);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+      font-size: .8rem; color: #e08080; line-height: 1.6; }
+
+    .add-part-btn { background: transparent; border: 1px dashed var(--border2);
+      color: var(--text3); border-radius: 8px; padding: 8px 14px;
+      font-family: inherit; font-size: .75rem; cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; gap: 6px; }
+    .add-part-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCYcEQF6pvH2wooI5u__AWaGLLgWGpl_mk",
+  authDomain:        "past-paper-tracker-8bc10.firebaseapp.com",
+  projectId:         "past-paper-tracker-8bc10",
+  storageBucket:     "past-paper-tracker-8bc10.firebasestorage.app",
+  messagingSenderId: "33410078760",
+  appId:             "1:33410078760:web:5b7516d48db796b435bd1d"
+};
+const TEACHER_PASSWORD = "changeme123";
+
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, addDoc, getDocs, doc,
+         updateDoc, deleteDoc, query, where, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { createElement as h, useState, useEffect, useCallback }
+  from 'https://esm.sh/react@18';
+import { createRoot } from 'https://esm.sh/react-dom@18/client';
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getFirestore(app);
+
+// ── Constants ──────────────────────────────────────────────────
+
+const DURING_OPTS = [
+  { v:'first_time',    icon:'✓',  label:'Got it first time',
+    sub:'', colorClass:'opt-green',  badge:'badge-green',  badgeLabel:'Got it' },
+  { v:'checked_notes', icon:'📖', label:'Checked notes — then got it',
+    sub:'You\'ll say what you missed during marking',
+    colorClass:'opt-orange', badge:'badge-orange', badgeLabel:'Used notes' },
+  { v:'came_back',     icon:'↩',  label:'Left it, came back — then answered',
+    sub:'You\'ll say what you missed during marking',
+    colorClass:'opt-purple', badge:'badge-purple', badgeLabel:'Came back' },
+  { v:'skipped',       icon:'→',  label:"Couldn't do it — skip for now",
+    sub:'We\'ll come back to this at the end of marking',
+    colorClass:'opt-red', badge:'badge-red', badgeLabel:'Skipped' },
+];
+
+// ── Mistake hierarchy ──────────────────────────────────────────
+//
+// Top-level categories → sub-options expand in-place for 2 & 3
+//
+// k values map to Firebase data (unchanged from v3 so existing data works)
+// G=unforced, A=formula, B=definition, C=procedure,
+// E=right topic wrong part, F=right topic wrong procedure, D=wrong topic, H=confused
+
+const MISTAKE_CATS = [
+  {
+    id: 1,
+    label: 'Unforced error',
+    desc: 'Sign error, arithmetic slip, misread question or illegible working',
+    k: 'G',
+    effort: 2,
+    action: 'Reflect: were you skipping steps? Was your working unclear? Fix the habit.',
+    badge: 'badge-slate',
+  },
+  {
+    id: 2,
+    label: "Didn't know the maths",
+    desc: 'You understood what was being asked but lacked knowledge to answer it',
+    sub: [
+      { k:'A', label:'Forgot a formula',
+        action:'Add to the front cover of your Mistakes Book.',
+        effort:1, badge:'badge-amber' },
+      { k:'B', label:'Forgot a definition or key word',
+        action:'Add to the back of your Mistakes Book.',
+        effort:1, badge:'badge-amber' },
+      { k:'C', label:"Procedural mistake — knew what to do but couldn't carry it out",
+        action:'Find drill questions — no context, just the maths. Repeat until fluent.',
+        effort:3, badge:'badge-orange' },
+    ],
+  },
+  {
+    id: 3,
+    label: "Didn't recognise the maths to use",
+    desc: "You weren't sure what approach or topic the question was asking for",
+    sub: [
+      { k:'E', label:'Knew the topic but not the specific part',
+        action:'Underline every key word. Write beside each one what maths it hints at. Annotate any diagrams.',
+        effort:4, badge:'badge-purple' },
+      { k:'F', label:"Knew the topic but not which procedure to use",
+        action:'Find a similar worked example. Annotate each line of working. Write a step-by-step guide.',
+        effort:5, badge:'badge-purple' },
+      { k:'D', label:"Didn't know the topic at all",
+        action:'Underline key words. Look in textbook or OneNote for similar questions.',
+        effort:4, badge:'badge-red' },
+    ],
+  },
+  {
+    id: 4,
+    label: "Can't figure out what went wrong",
+    desc: "Even with the mark scheme you're not sure where you went wrong",
+    k: 'H',
+    effort: 6,
+    action: 'Screenshot the question and email your teacher.',
+    badge: 'badge-red',
+  },
+];
+
+// Flat lookup of all mistake types by k (for report display)
+const ALL_MISTAKES = [
+  ...MISTAKE_CATS.filter(c => c.k).map(c => ({ k:c.k, label:c.label, action:c.action, effort:c.effort, badge:c.badge })),
+  ...MISTAKE_CATS.filter(c => c.sub).flatMap(c => c.sub),
+];
+function mistakeByKey(k) { return ALL_MISTAKES.find(m => m.k === k); }
+function duringByV(v)     { return DURING_OPTS.find(d => d.v === v); }
+
+const EFFORT_GROUPS = [
+  { efforts:[1], title:'Quick wins — do these first', sub:'Add to your Mistakes Book (5 min)' },
+  { efforts:[2], title:'Habits', sub:'Reflect on how you work (5 min)' },
+  { efforts:[3], title:'Drill practice', sub:'Find questions and repeat (15–30 min each)' },
+  { efforts:[4], title:'Analyse the question', sub:'Annotate with clues (15 min each)' },
+  { efforts:[5], title:'Structured revision', sub:'Find example + write step-by-step guide (30–45 min)' },
+  { efforts:[6], title:'Ask for help', sub:'Screenshot and email your teacher' },
+];
+
+function duringGridClass(during) {
+  const map = { first_time:'done-green', checked_notes:'done-orange',
+                came_back:'done-purple', skipped:'done-red' };
+  return map[during] || '';
+}
+
+// ── Firebase helpers ───────────────────────────────────────────
+
+async function getPapers(name) {
+  const q = query(collection(db,'papers'), where('studentName','==',name));
+  const snap = await getDocs(q);
+  const papers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  return papers.sort((a,b) => (b.createdAt?.seconds??0) - (a.createdAt?.seconds??0));
+}
+
+async function getAllPapers() {
+  const snap = await getDocs(collection(db,'papers'));
+  const papers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  return papers.sort((a,b) => (b.createdAt?.seconds??0) - (a.createdAt?.seconds??0));
+}
+
+async function savePaper(id, data) { await updateDoc(doc(db,'papers',id), data); }
+async function deletePaperDB(id)   { await deleteDoc(doc(db,'papers',id)); }
+
+function makeQuestions(n) {
+  return Array.from({ length: n }, (_, i) => ({
+    num: i+1, label: String(i+1), baseLabel: String(i+1),
+    during: null, correct: null, mistake: null, topic: '', done: false, actionDone: false
+  }));
+}
+
+async function addPaper(studentName, title, n) {
+  return await addDoc(collection(db,'papers'), {
+    studentName, title, numQuestions: n,
+    phase: 'during',
+    questions: makeQuestions(n),
+    createdAt: serverTimestamp()
+  });
+}
+
+// ── Shared components ──────────────────────────────────────────
+
+function PhasePill({ phase }) {
+  const map = { during:['phase-during','● During paper'],
+                during_complete:['phase-during','● During paper'],
+                marking:['phase-marking','● Marking'],
+                complete:['phase-complete','✓ Complete'] };
+  const [cls, lbl] = map[phase] || ['phase-during', phase];
+  return h('span', { className:`phase-pill ${cls}` }, lbl);
+}
+
+function DuringBadge({ during }) {
+  const opt = duringByV(during);
+  if (!opt) return null;
+  return h('span', { className:`q-during-badge ${opt.badge}` }, opt.icon, ' ', opt.badgeLabel);
+}
+
+// ── MistakeSelector ────────────────────────────────────────────
+// Shows 4 top-level categories. Clicking 2 or 3 expands sub-options in-place.
+// Clicking 1 or 4 (or any sub-option) immediately calls onSelect(k).
+
+function MistakeSelector({ onSelect, onBack, isCorrect }) {
+  const [expanded, setExpanded] = useState(null); // null | 2 | 3
+
+  const cats = isCorrect
+    ? MISTAKE_CATS.filter(c => c.id !== 4)  // H only if answer was wrong
+    : MISTAKE_CATS;
+
+  return h('div', null,
+    // Back button
+    h('button', {
+      className:'btn btn-ghost', style:{marginBottom:16,display:'flex',alignItems:'center',gap:6},
+      onClick: expanded ? () => setExpanded(null) : onBack
+    }, '← ', expanded ? 'Back to categories' : 'Back'),
+
+    h('p', { style:{fontSize:'.85rem',color:'var(--text2)',marginBottom:16,textAlign:'center'} },
+      expanded ? 'Select the best description:' : 'What went wrong?'
+    ),
+
+    // Show either top-level cats or expanded sub-options
+    expanded
+      ? h('div', null,
+          h('div', {
+            className:'mcat-btn expanded',
+            style:{cursor:'default',marginBottom:12}
+          },
+            h('span', { className:'mcat-num' }, expanded),
+            h('div', null,
+              h('div', { className:'mcat-title' }, cats.find(c=>c.id===expanded)?.label),
+              h('div', { className:'mcat-desc' }, cats.find(c=>c.id===expanded)?.desc)
+            )
+          ),
+          h('div', { className:'msub-section' },
+            h('div', { className:'msub-label' }, 'Select the specific issue:'),
+            ...cats.find(c=>c.id===expanded).sub.map(s =>
+              h('button', { key:s.k, className:'msub-btn', onClick:()=>onSelect(s.k) },
+                h('span', { className:'msub-letter' }, s.k === 'A' ? 'a' : s.k === 'B' ? 'b' : s.k === 'C' ? 'c' : s.k === 'E' ? 'a' : s.k === 'F' ? 'b' : 'c'),
+                h('div', null,
+                  h('div', { className:'msub-title' }, s.label),
+                  h('div', { className:'msub-action' }, '→ ', s.action)
+                )
+              )
+            )
+          )
+        )
+      : h('div', null,
+          ...cats.map(cat =>
+            h('button', {
+              key: cat.id,
+              className: 'mcat-btn',
+              onClick: () => {
+                if (cat.sub) setExpanded(cat.id);
+                else onSelect(cat.k);
+              }
+            },
+              h('span', { className:'mcat-num' }, cat.id),
+              h('div', null,
+                h('div', { className:'mcat-title' }, cat.label),
+                h('div', { className:'mcat-desc' }, cat.desc,
+                  cat.sub && h('span', {style:{color:'var(--amber)',marginLeft:6}}, '→ select type')
+                )
+              )
+            )
+          )
+        )
+  );
+}
+
+// ── QuestionGridNav ────────────────────────────────────────────
+
+function QuestionGridNav({ questions, currentIdx, onJump, mode }) {
+  return h('div', { className:'q-grid-nav' },
+    questions.map((q, i) => {
+      let cls = i === currentIdx ? 'current' : '';
+      if (i !== currentIdx) {
+        if (mode === 'during') cls = duringGridClass(q.during);
+        else cls = q.done ? (q.correct ? 'm-correct' : 'm-wrong') : (q.during != null ? 'm-todo' : '');
+      }
+      return h('button', { key:i, className:`q-grid-btn ${cls}`, onClick:()=>onJump(i), title:`Q${q.label}` }, q.label);
+    })
+  );
+}
+
+// ── Modals ─────────────────────────────────────────────────────
+
+function NameScreen({ onConfirm }) {
+  const [name, setName] = useState('');
+  const go = () => { if (name.trim()) onConfirm(name.trim()); };
+  return h('div', { className:'name-screen' },
+    h('div', { className:'name-card' },
+      h('h1', null, 'Past Paper Tracker'),
+      h('p', null, 'Year 13 Maths Revision\nEnter your name to access your papers.'),
+      h('input', { type:'text', placeholder:'Your name…', value:name, autoFocus:true,
+        style:{marginBottom:14},
+        onChange:e=>setName(e.target.value), onKeyDown:e=>e.key==='Enter'&&go() }),
+      h('button', { className:'btn btn-primary', style:{width:'100%'},
+        disabled:!name.trim(), onClick:go }, 'Get started →')
+    )
+  );
+}
+
+function TeacherModal({ onSuccess, onClose }) {
+  const [pw, setPw] = useState(''); const [err, setErr] = useState(false);
+  const attempt = () => { if (pw===TEACHER_PASSWORD) onSuccess(); else { setErr(true); setPw(''); } };
+  return h('div', { className:'overlay', onClick:onClose },
+    h('div', { className:'modal', onClick:e=>e.stopPropagation() },
+      h('h3', null, '🔐 Teacher Access'),
+      h('p', null, 'Enter your teacher password.'),
+      h('input', { type:'password', placeholder:'Password…', value:pw, autoFocus:true,
+        style:err?{borderColor:'var(--red)',marginBottom:8}:{marginBottom:8},
+        onChange:e=>{setPw(e.target.value);setErr(false);}, onKeyDown:e=>e.key==='Enter'&&attempt() }),
+      err && h('p',{style:{color:'#e07070',fontSize:'.75rem',marginBottom:12}},'Incorrect password'),
+      h('div',{style:{display:'flex',gap:10}},
+        h('button',{className:'btn btn-primary',onClick:attempt},'Unlock'),
+        h('button',{className:'btn btn-ghost',onClick:onClose},'Cancel')
+      )
+    )
+  );
+}
+
+function NewPaperModal({ onConfirm, onClose }) {
+  const [title, setTitle] = useState('');
+  const [num,   setNum]   = useState('');
+  const valid = title.trim() && Number(num) >= 1 && Number(num) <= 60;
+  const go = () => { if (valid) onConfirm(title.trim(), Number(num)); };
+  return h('div', { className:'overlay', onClick:onClose },
+    h('div', { className:'modal', onClick:e=>e.stopPropagation() },
+      h('h3', null, '📄 Start a new paper'),
+      h('p', null, 'Give it a title and say how many questions it has. You can split questions into parts (3a, 3b…) as you go.'),
+      h('label', { className:'lbl' }, 'Paper title'),
+      h('input', { type:'text', placeholder:'e.g. June 2023 Paper 1', value:title, autoFocus:true,
+        style:{marginBottom:16}, onChange:e=>setTitle(e.target.value) }),
+      h('label', { className:'lbl' }, 'Number of questions'),
+      h('input', { type:'number', placeholder:'e.g. 12', value:num, min:1, max:60,
+        style:{marginBottom:20},
+        onChange:e=>setNum(e.target.value), onKeyDown:e=>e.key==='Enter'&&go() }),
+      h('div', { style:{display:'flex',gap:10} },
+        h('button', { className:'btn btn-primary', disabled:!valid, onClick:go }, 'Start paper'),
+        h('button', { className:'btn btn-ghost', onClick:onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose }) {
+  return h('div', { className:'overlay', onClick:onClose },
+    h('div', { className:'modal', onClick:e=>e.stopPropagation() },
+      h('h3', null, title),
+      h('p', null, message),
+      h('div', { style:{display:'flex',gap:10} },
+        h('button', { className:`btn ${danger?'btn-danger':'btn-primary'}`, onClick:onConfirm }, confirmLabel),
+        h('button', { className:'btn btn-ghost', onClick:onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+// ── DuringPhase ────────────────────────────────────────────────
+// Handles 'during' and 'during_complete' (splash) in one component
+
+function DuringPhase({ paper, onUpdate }) {
+  const qs = paper.questions;
+  const firstUndone = qs.findIndex(q => q.during === null);
+  const [cursor, setCursor]         = useState(firstUndone === -1 ? 0 : firstUndone);
+  const [showingSplash, setShowSplash] = useState(paper.phase === 'during_complete');
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+
+  const answered  = qs.filter(q => q.during !== null).length;
+  const skipped   = qs.filter(q => q.during === 'skipped');
+  const pct       = Math.round((answered / qs.length) * 100);
+
+  async function pick(v) {
+    const newQs = qs.map((q,i) => i===cursor ? {...q, during:v} : q);
+    await savePaper(paper.id, { questions:newQs });
+    onUpdate({ ...paper, questions:newQs });
+    // Auto-advance to next unanswered
+    const next = newQs.findIndex((q,i) => i > cursor && q.during === null);
+    if (next !== -1) setCursor(next);
+  }
+
+  async function addPart() {
+    const q = qs[cursor];
+    const base = q.baseLabel || q.label;
+    const siblings = qs.filter(qq => qq.baseLabel === base || qq.label === base);
+    let newQs;
+
+    if (siblings.length === 1) {
+      // First split: Q3 → Q3a, Q3b
+      newQs = [];
+      for (const qq of qs) {
+        if (qq.label === q.label) {
+          newQs.push({ ...qq, label: base+'a', baseLabel: base });
+          newQs.push({ num:qq.num, label:base+'b', baseLabel:base,
+            during:null, correct:null, mistake:null, topic:'', done:false, actionDone:false });
+        } else {
+          newQs.push(qq);
+        }
+      }
+    } else {
+      // Add next letter
+      const nextLetter = String.fromCharCode('a'.charCodeAt(0) + siblings.length);
+      const newQ = { num:q.num, label:base+nextLetter, baseLabel:base,
+        during:null, correct:null, mistake:null, topic:'', done:false, actionDone:false };
+      const insertAt = qs.indexOf(siblings[siblings.length-1]) + 1;
+      newQs = [...qs.slice(0,insertAt), newQ, ...qs.slice(insertAt)];
+    }
+
+    await savePaper(paper.id, { questions:newQs, numQuestions:newQs.length });
+    onUpdate({ ...paper, questions:newQs, numQuestions:newQs.length });
+  }
+
+  async function finishPaper() {
+    // Mark any still-null as skipped
+    const newQs = qs.map(q => q.during===null ? {...q,during:'skipped'} : q);
+    await savePaper(paper.id, { questions:newQs, phase:'during_complete' });
+    onUpdate({ ...paper, questions:newQs, phase:'during_complete' });
+    setShowFinishConfirm(false);
+    setShowSplash(true);
+  }
+
+  async function beginMarking() {
+    await savePaper(paper.id, { phase:'marking' });
+    onUpdate({ ...paper, phase:'marking' });
+  }
+
+  // ── Splash screen ──
+  if (showingSplash) {
+    const answeredQs = qs.filter(q => q.during !== 'skipped');
+    const skippedQs  = qs.filter(q => q.during === 'skipped');
+
+    return h('div', { className:'splash' },
+      h('div', { className:'splash-head' }, 'Paper done'),
+      h('p', { className:'splash-sub' },
+        'Here\'s a summary of where you got to. You can still go back and change any answer before you begin marking.'
+      ),
+
+      answeredQs.length > 0 && h('div', { className:'splash-section' },
+        h('div', { className:'splash-section-title' }, `${answeredQs.length} answered`),
+        h('div', { className:'splash-q-grid' },
+          answeredQs.map((q,i) =>
+            h('button', { key:i, className:'splash-q-btn answered',
+              onClick:()=>{ setShowSplash(false); setCursor(qs.indexOf(q)); } }, q.label)
+          )
+        )
+      ),
+
+      skippedQs.length > 0 && h('div', { className:'splash-section' },
+        h('div', { className:'splash-section-title', style:{color:'#e07070'} },
+          `${skippedQs.length} skipped — we\'ll come back to ${skippedQs.length===1?'this':'these'}`
+        ),
+        h('div', { className:'splash-q-grid' },
+          skippedQs.map((q,i) =>
+            h('button', { key:i, className:'splash-q-btn skipped',
+              onClick:()=>{ setShowSplash(false); setCursor(qs.indexOf(q)); } }, q.label)
+          )
+        ),
+        h('p', { style:{fontSize:'.78rem',color:'var(--text2)',marginTop:8,lineHeight:1.6} },
+          'Tip: Before pressing "Begin marking", try the topics for these questions in your notes or textbook.'
+        )
+      ),
+
+      h('div', { className:'splash-buttons' },
+        h('button', { className:'btn btn-ghost',
+          onClick:()=>setShowSplash(false) }, '← Go back to questions'),
+        h('button', { className:'btn btn-primary',
+          style:{fontSize:'1rem',padding:'12px 28px'},
+          onClick:beginMarking }, 'Begin marking →')
+      )
+    );
+  }
+
+  // ── Normal during question view ──
+  const q = qs[cursor] || qs[0];
+  const unanswered = qs.filter(q => q.during === null).length;
+
+  return h('div', null,
+    showFinishConfirm && h(ConfirmModal, {
+      title:'Finish the paper?',
+      message: unanswered > 0
+        ? `${unanswered} question${unanswered!==1?'s':''} still unanswered — ${unanswered!==1?'they':'it'} will be marked as skipped.`
+        : 'Mark the paper as finished and move to the summary.',
+      confirmLabel:'Finish paper',
+      danger:false,
+      onConfirm:finishPaper,
+      onClose:()=>setShowFinishConfirm(false)
+    }),
+
+    h('div', { style:{paddingTop:24} },
+      h('div', { style:{marginBottom:6,fontSize:'.72rem',color:'var(--text2)',
+        display:'flex',justifyContent:'space-between'} },
+        h('span', null, 'Navigate — tap any question'),
+        h('span', null, `${answered} / ${qs.length} answered`)
+      ),
+      h(QuestionGridNav, { questions:qs, currentIdx:cursor, onJump:setCursor, mode:'during' }),
+
+      h('div', { className:'panel' },
+        h('div', { style:{textAlign:'center',marginBottom:4,
+          fontSize:'.7rem',color:'var(--text2)',letterSpacing:'.1em'} },
+          `QUESTION ${cursor+1} OF ${qs.length}`
+        ),
+        h('div', { className:'q-hero' }, `Q${q.label}`),
+        q.during && h('div', { style:{textAlign:'center',marginBottom:10} },
+          h(DuringBadge, { during:q.during })
+        ),
+        h('p', { style:{textAlign:'center',marginBottom:16,color:'var(--text2)',fontSize:'.85rem'} },
+          q.during ? 'Change your answer:' : 'How did this question go?'
+        ),
+
+        ...DURING_OPTS.map(opt =>
+          h('button', { key:opt.v,
+            className:`option-btn ${q.during===opt.v ? opt.colorClass : ''}`,
+            onClick:()=>pick(opt.v) },
+            h('span',{className:'option-icon'},opt.icon),
+            h('div', null,
+              h('div',{className:'option-main'},opt.label),
+              opt.sub && h('div',{className:'option-sub'},opt.sub)
+            )
+          )
+        ),
+
+        // Add part button
+        h('div', { style:{marginTop:12,display:'flex',justifyContent:'flex-end'} },
+          h('button', { className:'add-part-btn', onClick:addPart },
+            '＋ Split into parts  ',
+            h('span', { style:{fontSize:'.7rem',color:'var(--text3)'} },
+              `(${q.label}a, ${q.label}b…)`)
+          )
+        )
+      ),
+
+      h('div', { style:{marginTop:12} },
+        h('div', { style:{display:'flex',justifyContent:'space-between',
+          fontSize:'.68rem',color:'var(--text2)',marginBottom:4} },
+          h('span', null, `${pct}% answered`),
+          skipped.length > 0 && h('span', { style:{color:'#e07070'} }, `${skipped.length} skipped`)
+        ),
+        h('div', { className:'prog-track' },
+          h('div', { className:'prog-fill', style:{width:`${pct}%`} })
+        )
+      ),
+
+      h('div', { style:{display:'flex',gap:10,marginTop:12} },
+        h('button', { className:'btn btn-ghost', style:{flex:1}, disabled:cursor===0,
+          onClick:()=>setCursor(c=>c-1) }, '← Prev'),
+        h('button', { className:'btn btn-ghost', style:{flex:1}, disabled:cursor===qs.length-1,
+          onClick:()=>setCursor(c=>c+1) }, 'Next →'),
+        h('button', { className:'btn btn-primary',
+          onClick:()=>answered===qs.length ? finishPaper() : setShowFinishConfirm(true) },
+          'Finish paper')
+      )
+    )
+  );
+}
+
+// ── MarkingPhase ───────────────────────────────────────────────
+
+function MarkingPhase({ paper, onUpdate }) {
+  const qs       = paper.questions;
+  const attempted = qs.filter(q => q.during !== 'skipped');
+  const skipped   = qs.filter(q => q.during === 'skipped');
+  const queue     = [...attempted, ...skipped];
+
+  const firstUndone = queue.findIndex(q => !q.done);
+  const [cursor, setCursor]   = useState(firstUndone === -1 ? 0 : firstUndone);
+  const [step, setStep]       = useState('result');
+  const [tempCorrect, setTC]  = useState(null);
+  const [tempTopic,   setTT]  = useState('');
+  const [showSkipTransition, setShowSkipTrans] = useState(false);
+
+  const q       = queue[cursor];
+  const inSkip  = cursor >= attempted.length;
+
+  function needsMistake(during, correct) {
+    return !(during === 'first_time' && correct === true);
+  }
+
+  async function finishQuestion(qNum, correct, mistake, topic) {
+    const newQs = qs.map(q => q.num === qNum && q.label === queue[cursor].label
+      ? {...q, correct, mistake:mistake||null, topic:topic||'', done:true} : q);
+    const allDone = newQs.every(q => q.done);
+    const newPhase = allDone ? 'complete' : 'marking';
+    await savePaper(paper.id, { questions:newQs, phase:newPhase });
+    onUpdate({ ...paper, questions:newQs, phase:newPhase });
+    if (!allDone) {
+      const next = cursor + 1;
+      setCursor(next);
+      setStep('result');
+      setTC(null);
+      setTT('');
+      if (next === attempted.length && skipped.length > 0) setShowSkipTrans(true);
+    }
+  }
+
+  async function handleResult(correct) {
+    if (!needsMistake(q.during, correct)) await finishQuestion(q.num, correct, null, tempTopic);
+    else { setTC(correct); setStep('mistake'); }
+  }
+
+  async function handleMistake(k) {
+    await finishQuestion(q.num, tempCorrect, k, tempTopic);
+  }
+
+  if (showSkipTransition) {
+    return h('div', { className:'splash', style:{paddingTop:32,textAlign:'center'} },
+      h('div', { style:{fontSize:'2.5rem',marginBottom:12} }, '↩'),
+      h('div', { className:'splash-head' }, 'Now for the skipped questions'),
+      h('p', { className:'splash-sub' },
+        `You skipped ${skipped.length} question${skipped.length!==1?'s':''}. ` +
+        `Have a look at the relevant topics in your notes or textbook, then come back and try them.`
+      ),
+      h('button', { className:'btn btn-primary', style:{fontSize:'1rem',padding:'12px 28px'},
+        onClick:()=>setShowSkipTrans(false) }, 'Try the skipped questions →')
+    );
+  }
+
+  const gridClass = (i) => {
+    const item = queue[i];
+    if (i === cursor) return 'current';
+    if (!item.done) return item.during != null ? 'm-todo' : '';
+    return item.correct ? 'm-correct' : 'm-wrong';
+  };
+
+  if (step === 'result') {
+    const prompt = q.during === 'skipped'
+      ? 'After looking at the topic — can you answer it now?'
+      : 'Check the mark scheme — was your answer correct?';
+
+    return h('div', { style:{paddingTop:24} },
+      h('div', { style:{marginBottom:6,fontSize:'.72rem',color:'var(--text2)',
+        display:'flex',justifyContent:'space-between'} },
+        h('span', null, 'Navigate questions'),
+        h('span', { style:{color:inSkip?'var(--red)':'var(--text2)'} },
+          inSkip ? '↩ Skipped' : `● ${cursor+1} of ${attempted.length}`)
+      ),
+      h('div', { className:'q-grid-nav' },
+        queue.map((_,i) =>
+          h('button', { key:i, className:`q-grid-btn ${gridClass(i)}`,
+            onClick:()=>{ setCursor(i); setStep('result'); setTC(null); setTT(''); },
+            title:`Q${queue[i].label}` }, queue[i].label)
+        )
+      ),
+
+      h('div', { className:'panel' },
+        h('div', { style:{textAlign:'center',marginBottom:4,
+          fontSize:'.7rem',color:'var(--text2)',letterSpacing:'.1em'} },
+          inSkip
+            ? `SKIPPED — ${cursor-attempted.length+1} OF ${skipped.length}`
+            : `MARKING — ${cursor+1} OF ${attempted.length}`
+        ),
+        h('div', { className:'q-hero' }, `Q${q.label}`),
+        h('div', { style:{textAlign:'center',marginBottom:14} },
+          h(DuringBadge, { during:q.during })
+        ),
+        h('label', { className:'lbl' }, 'Topic (optional)'),
+        h('input', { type:'text',
+          placeholder:'e.g. Parametric differentiation…',
+          value:tempTopic, onChange:e=>setTT(e.target.value), style:{marginBottom:16} }),
+        h('p', { style:{textAlign:'center',marginBottom:14,
+          color:'var(--text2)',fontSize:'.88rem',fontWeight:600} }, prompt),
+        h('div', { style:{display:'flex',gap:10} },
+          h('button', { className:'btn option-btn opt-green',
+            style:{flex:1,justifyContent:'center',marginBottom:0},
+            onClick:()=>handleResult(true) },
+            h('span',{className:'option-icon'},'✓'),
+            h('div',null,h('div',{className:'option-main'},'Correct'))),
+          h('button', { className:'btn option-btn opt-red',
+            style:{flex:1,justifyContent:'center',marginBottom:0},
+            onClick:()=>handleResult(false) },
+            h('span',{className:'option-icon'},'✗'),
+            h('div',null,h('div',{className:'option-main'},'Incorrect')))
+        )
+      ),
+
+      h('div', { style:{display:'flex',gap:10,marginTop:12} },
+        h('button', { className:'btn btn-ghost', style:{flex:1}, disabled:cursor===0,
+          onClick:()=>{ setCursor(c=>c-1); setStep('result'); setTC(null); setTT(''); } }, '← Prev'),
+        h('button', { className:'btn btn-ghost', style:{flex:1}, disabled:cursor===queue.length-1,
+          onClick:()=>{ setCursor(c=>c+1); setStep('result'); setTC(null); setTT(''); } }, 'Next →')
+      )
+    );
+  }
+
+  // step === 'mistake'
+  return h('div', { style:{paddingTop:24} },
+    h('div', { className:'panel' },
+      h('div', { style:{textAlign:'center',marginBottom:6,
+        fontSize:'.7rem',color:'var(--text2)',letterSpacing:'.1em'} },
+        `Q${q.label} — WHAT WENT WRONG?`
+      ),
+      h(MistakeSelector, {
+        onSelect: handleMistake,
+        onBack: ()=>{ setStep('result'); setTC(null); },
+        isCorrect: tempCorrect
+      })
+    )
+  );
+}
+
+// ── ReportPhase ────────────────────────────────────────────────
+
+function ReportPhase({ paper, onBack, onUpdate }) {
+  const qs = paper.questions;
+  const total     = qs.length;
+  const correct   = qs.filter(q=>q.correct===true).length;
+  const gotFirst  = qs.filter(q=>q.during==='first_time'&&q.correct===true).length;
+  const withMistakes = qs.filter(q=>q.mistake!==null);
+
+  async function toggleDone(label) {
+    const newQs = qs.map(q => q.label===label ? {...q,actionDone:!q.actionDone} : q);
+    await savePaper(paper.id, { questions:newQs });
+    onUpdate({ ...paper, questions:newQs });
+  }
+
+  const groups = EFFORT_GROUPS.map(g => ({
+    ...g,
+    items: withMistakes.filter(q => {
+      const m = mistakeByKey(q.mistake);
+      return m && g.efforts.includes(m.effort);
+    })
+  })).filter(g=>g.items.length>0);
+
+  const remaining = withMistakes.filter(q=>!q.actionDone).length;
+
+  return h('div', { style:{marginTop:24} },
+    h('div', { className:'report-stats' },
+      h('div',{className:'stat-card'},
+        h('div',{className:'stat-num',style:{color:'var(--text)'}},total),
+        h('div',{className:'stat-lbl'},'Questions')),
+      h('div',{className:'stat-card'},
+        h('div',{className:'stat-num',style:{color:'var(--green)'}},correct),
+        h('div',{className:'stat-lbl'},'Correct')),
+      h('div',{className:'stat-card'},
+        h('div',{className:'stat-num',style:{color:'var(--amber)'}},gotFirst),
+        h('div',{className:'stat-lbl'},'First time')),
+      h('div',{className:'stat-card'},
+        h('div',{className:'stat-num',style:{color:remaining>0?'var(--red)':'var(--green)'}},remaining),
+        h('div',{className:'stat-lbl'},'Actions left')),
+    ),
+    withMistakes.length === 0
+      ? h('div',{className:'empty'},h('div',{className:'empty-icon'},'🎉'),h('p',null,'No actions — great paper!'))
+      : h('div', null,
+          h('p',{style:{fontSize:'.8rem',color:'var(--text2)',marginBottom:20,lineHeight:1.7}},
+            'Work through these in order — quick wins first. Tick each one off when done.'),
+          ...groups.map((g,gi) =>
+            h('div',{key:gi,className:'report-group'},
+              h('div',{className:'report-group-head'},
+                h('span',null,g.title),
+                h('span',{className:'report-group-subtitle'},g.sub)
+              ),
+              ...g.items.map((q,qi) => {
+                const m = mistakeByKey(q.mistake);
+                const d = duringByV(q.during);
+                return h('div',{key:qi,className:`report-item ${q.actionDone?'done':''}`},
+                  h('div',{className:'report-item-top'},
+                    h('button',{className:`action-tick ${q.actionDone?'ticked':''}`,
+                      title:q.actionDone?'Mark as not done':'Mark as done',
+                      onClick:()=>toggleDone(q.label)},q.actionDone?'✓':''),
+                    h('span',{style:{fontWeight:700,fontSize:'.82rem'}},`Q${q.label}`),
+                    q.topic && h('span',{style:{background:'var(--bg3)',border:'1px solid var(--border2)',
+                      borderRadius:4,padding:'1px 8px',fontSize:'.7rem',color:'var(--text2)'}},q.topic),
+                    d && h('span',{className:`badge ${d.badge}`},d.badgeLabel),
+                    m && h('span',{className:`badge ${m.badge}`},m.k,' ',m.label)
+                  ),
+                  m && h('div',{className:'report-action'},m.action)
+                );
+              })
+            )
+          )
+        ),
+    h('button',{className:'btn btn-ghost',style:{marginTop:24,width:'100%'},onClick:onBack},'← Back to papers')
+  );
+}
+
+// ── PaperView ──────────────────────────────────────────────────
+
+function PaperView({ paper, onBack, onUpdate }) {
+  const [local, setLocal]     = useState(paper);
+  const [showReset, setReset] = useState(false);
+
+  function handle(updated) { setLocal(updated); onUpdate(updated); }
+
+  async function resetPaper() {
+    const newQs = makeQuestions(local.numQuestions);
+    const updated = { ...local, questions:newQs, phase:'during' };
+    await savePaper(local.id, { questions:newQs, phase:'during' });
+    setLocal(updated); onUpdate(updated); setReset(false);
+  }
+
+  return h('div', null,
+    showReset && h(ConfirmModal, {
+      title:'Reset this paper?',
+      message:'All answers and marking will be cleared. This cannot be undone.',
+      confirmLabel:'Reset paper', danger:true,
+      onConfirm:resetPaper, onClose:()=>setReset(false)
+    }),
+    h('div',{className:'topbar'},
+      h('div',{className:'topbar-inner'},
+        h('div',{style:{display:'flex',alignItems:'center',gap:12}},
+          h('button',{className:'btn-back',onClick:onBack},'← Papers'),
+          h('div',null,
+            h('div',{className:'brand-title'},local.title),
+            h('div',{className:'brand-sub'},`${local.numQuestions} questions`)
+          )
+        ),
+        h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+          h(PhasePill,{phase:local.phase}),
+          h('button',{className:'btn btn-ghost',style:{fontSize:'.7rem',padding:'5px 10px'},
+            onClick:()=>setReset(true)},'Reset')
+        )
+      )
+    ),
+    h('div',{className:'container'},
+      (local.phase==='during' || local.phase==='during_complete')
+        && h(DuringPhase, {paper:local, onUpdate:handle}),
+      local.phase==='marking'  && h(MarkingPhase, {paper:local, onUpdate:handle}),
+      local.phase==='complete' && h(ReportPhase, {paper:local, onBack, onUpdate:handle})
+    )
+  );
+}
+
+// ── PapersList ─────────────────────────────────────────────────
+
+function PapersList({ studentName, papers, loadError, onSelect, onNew, onTeacher, onChangeName, onPapersChange }) {
+  const [tab,           setTab]    = useState('papers');
+  const [confirmDelete, setConfDel] = useState(null);
+
+  const allActions = papers
+    .filter(p => p.phase==='complete'||p.phase==='marking')
+    .flatMap(p => (p.questions||[]).filter(q=>q.done&&q.mistake).map(q=>({...q,paperTitle:p.title,paperId:p.id})));
+
+  const actionGroups = EFFORT_GROUPS.map(g => ({
+    ...g,
+    items: allActions.filter(q => { const m=mistakeByKey(q.mistake); return m&&g.efforts.includes(m.effort); })
+  })).filter(g=>g.items.length>0);
+
+  async function toggleGlobal(paperId, label) {
+    const p = papers.find(p=>p.id===paperId);
+    if (!p) return;
+    const newQs = p.questions.map(q => q.label===label ? {...q,actionDone:!q.actionDone} : q);
+    await savePaper(paperId, { questions:newQs });
+    onPapersChange(papers.map(pp => pp.id===paperId ? {...pp,questions:newQs} : pp));
+  }
+
+  async function handleDelete(id) {
+    await deletePaperDB(id);
+    onPapersChange(papers.filter(p=>p.id!==id));
+    setConfDel(null);
+  }
+
+  const allQs   = papers.flatMap(p=>p.questions||[]);
+  const totalQs = allQs.length;
+  const correct = allQs.filter(q=>q.correct===true).length;
+  const mCounts = {};
+  ALL_MISTAKES.forEach(m => { mCounts[m.k] = allQs.filter(q=>q.mistake===m.k).length; });
+
+  return h('div', null,
+    confirmDelete && h(ConfirmModal, {
+      title:'Delete this paper?', message:'All data will be permanently deleted.',
+      confirmLabel:'Delete', danger:true, onConfirm:()=>handleDelete(confirmDelete), onClose:()=>setConfDel(null)
+    }),
+
+    h('div',{className:'topbar'},
+      h('div',{className:'topbar-inner'},
+        h('div',{style:{display:'flex',alignItems:'center',gap:12}},
+          h('div',null,
+            h('div',{className:'brand-title'},'Past Paper Tracker'),
+            h('div',{className:'brand-sub'},'Year 13 Maths Revision')
+          ),
+          h('div',{className:'student-chip'},studentName)
+        ),
+        h('div',{style:{display:'flex',gap:8}},
+          h('button',{className:'btn btn-ghost',style:{fontSize:'.7rem',padding:'6px 10px'},onClick:onChangeName},'change name'),
+          h('button',{className:'teacher-btn',onClick:onTeacher},'Teacher')
+        )
+      )
+    ),
+
+    h('div',{className:'container'},
+      h('div',{style:{paddingTop:16,marginBottom:4}},
+        h('div',{className:'tab-bar'},
+          ['papers','review','stats'].map(t =>
+            h('button',{key:t,className:`tab-btn ${tab===t?'active':''}`,onClick:()=>setTab(t)},
+              t==='papers'?'📄 Papers':t==='review'?'⚠️ Actions':'📊 Stats')
+          )
+        )
+      ),
+
+      tab==='papers' && h('div',null,
+        loadError && h('div',{className:'error-banner'},'⚠ ',loadError),
+        h('div',{className:'sec-lbl'},'Your papers'),
+        papers.length===0
+          ? h('div',{className:'empty'},h('div',{className:'empty-icon'},'📄'),h('p',null,'No papers yet.\nClick "Start a new paper" to begin.'))
+          : h('div',{className:'paper-grid'},
+              papers.map(p => {
+                const pqs=p.questions||[];
+                const corr=pqs.filter(q=>q.correct===true).length;
+                const date=p.createdAt?.toDate?.()?.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'})||'';
+                const actionsLeft=pqs.filter(q=>q.mistake&&!q.actionDone).length;
+                return h('div',{key:p.id,className:'paper-card',onClick:()=>onSelect(p)},
+                  h('div',{className:'paper-card-title'},p.title),
+                  h('div',{className:'paper-card-meta'},`${p.numQuestions} questions`,date&&` · ${date}`),
+                  h(PhasePill,{phase:p.phase}),
+                  p.phase==='complete' && h('div',{style:{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'}},
+                    h('span',{className:'badge badge-green'},`${corr} correct`),
+                    actionsLeft>0 && h('span',{className:'badge badge-red'},`${actionsLeft} actions left`)
+                  ),
+                  h('div',{style:{marginTop:10},onClick:e=>e.stopPropagation()},
+                    h('button',{className:'btn btn-danger',style:{fontSize:'.7rem',padding:'4px 10px'},
+                      onClick:()=>setConfDel(p.id)},'Delete')
+                  )
+                );
+              })
+            ),
+        h('button',{className:'new-paper-btn',style:{marginTop:12,width:'100%'},onClick:onNew},'+ Start a new paper')
+      ),
+
+      tab==='review' && h('div',null,
+        allActions.length===0
+          ? h('div',{className:'empty'},h('div',{className:'empty-icon'},'🎉'),h('p',null,'No actions yet — complete a paper to see your to-do list here.'))
+          : h('div',null,
+              h('p',{style:{fontSize:'.8rem',color:'var(--text2)',marginBottom:20,lineHeight:1.7}},
+                'All outstanding actions across your papers, ordered easiest → hardest.'),
+              ...actionGroups.map((g,gi) =>
+                h('div',{key:gi,className:'report-group'},
+                  h('div',{className:'report-group-head'},
+                    h('span',null,g.title),h('span',{className:'report-group-subtitle'},g.sub)
+                  ),
+                  ...g.items.map((q,qi) => {
+                    const m=mistakeByKey(q.mistake);
+                    return h('div',{key:qi,className:`report-item ${q.actionDone?'done':''}`},
+                      h('div',{className:'report-item-top'},
+                        h('button',{className:`action-tick ${q.actionDone?'ticked':''}`,
+                          title:q.actionDone?'Mark as not done':'Mark as done',
+                          onClick:()=>toggleGlobal(q.paperId,q.label)},q.actionDone?'✓':''),
+                        h('span',{style:{fontWeight:700,fontSize:'.78rem',color:'var(--text3)'}},q.paperTitle),
+                        h('span',{style:{fontWeight:700,fontSize:'.85rem'}},` Q${q.label||q.num}`),
+                        q.topic && h('span',{style:{background:'var(--bg3)',border:'1px solid var(--border2)',borderRadius:4,padding:'1px 8px',fontSize:'.68rem',color:'var(--text2)'}},q.topic)
+                      ),
+                      m && h('div',{className:'report-action'},m.action)
+                    );
+                  })
+                )
+              )
+            )
+      ),
+
+      tab==='stats' && h('div',null,
+        totalQs===0
+          ? h('div',{className:'empty'},h('p',null,'No data yet.'))
+          : h('div',null,
+              h('div',{className:'report-stats'},
+                h('div',{className:'stat-card'},h('div',{className:'stat-num',style:{color:'var(--text)'}},papers.length),h('div',{className:'stat-lbl'},'Papers')),
+                h('div',{className:'stat-card'},h('div',{className:'stat-num',style:{color:'var(--text2)'}},totalQs),h('div',{className:'stat-lbl'},'Questions')),
+                h('div',{className:'stat-card'},h('div',{className:'stat-num',style:{color:'var(--green)'}},correct),h('div',{className:'stat-lbl'},'Correct')),
+                h('div',{className:'stat-card'},h('div',{className:'stat-num',style:{color:'var(--amber)'}},totalQs?Math.round(correct/totalQs*100)+'%':'—'),h('div',{className:'stat-lbl'},'Score'))
+              ),
+              h('div',{className:'sec-lbl'},'Mistake breakdown'),
+              ...ALL_MISTAKES.filter((m,i,a)=>a.findIndex(x=>x.k===m.k)===i&&mCounts[m.k]>0).map(m =>
+                h('div',{key:m.k,style:{display:'flex',alignItems:'center',gap:12,marginBottom:10}},
+                  h('span',{className:`badge ${m.badge}`,style:{minWidth:28,justifyContent:'center'}},m.k),
+                  h('div',{style:{flex:1,fontSize:'.76rem',color:'var(--text2)'}},m.label),
+                  h('div',{style:{width:`${Math.round(mCounts[m.k]/totalQs*100)}%`,minWidth:4,height:8,background:'var(--border2)',borderRadius:4}}),
+                  h('span',{style:{fontSize:'.75rem',color:'var(--text3)',minWidth:20,textAlign:'right'}},mCounts[m.k])
+                )
+              )
+            )
+      )
+    )
+  );
+}
+
+// ── TeacherDashboard ───────────────────────────────────────────
+
+function TeacherDashboard({ onClose }) {
+  const [papers, setPapers]     = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => { getAllPapers().then(p=>{ setPapers(p); setLoading(false); }); }, []);
+
+  const byStudent = {};
+  papers.forEach(p=>{ if(!byStudent[p.studentName]) byStudent[p.studentName]=[]; byStudent[p.studentName].push(p); });
+  const toggle = name => setExpanded(e=>({...e,[name]:!e[name]}));
+
+  return h('div',null,
+    h('div',{className:'topbar'},
+      h('div',{className:'topbar-inner'},
+        h('div',{style:{display:'flex',alignItems:'center',gap:12}},
+          h('button',{className:'btn-back',onClick:onClose},'← Back'),
+          h('div',null,h('div',{className:'brand-title'},'Class Dashboard'),h('div',{className:'brand-sub'},'Teacher View'))
+        ),
+        h('div',{className:'teacher-tag'},'🔐 Teacher')
+      )
+    ),
+    h('div',{className:'container'},
+      h('div',{className:'sec-lbl'},`${Object.keys(byStudent).length} students`),
+      loading
+        ? h('div',{className:'empty'},h('p',null,'Loading…'))
+        : Object.keys(byStudent).length===0
+          ? h('div',{className:'empty'},h('div',{className:'empty-icon'},'📊'),h('p',null,'No student data yet.'))
+          : Object.entries(byStudent).map(([name,stuPapers]) => {
+              const allQs=stuPapers.flatMap(p=>p.questions||[]);
+              const needsTeacher=allQs.filter(q=>q.mistake==='H');
+              const isOpen=expanded[name];
+              return h('div',{key:name,className:'student-block'},
+                h('div',{className:'student-block-hdr',onClick:()=>toggle(name)},
+                  h('div',null,
+                    h('div',{className:'student-name'},name),
+                    h('div',{style:{fontSize:'.7rem',color:'var(--text2)',marginTop:2}},
+                      `${stuPapers.length} paper${stuPapers.length!==1?'s':''} · ${allQs.filter(q=>q.done).length} questions marked`)
+                  ),
+                  h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+                    needsTeacher.length>0 && h('span',{className:'badge badge-red'},`${needsTeacher.length} need teacher`),
+                    h('span',{style:{color:'var(--text3)',marginLeft:4}},isOpen?'▲':'▼')
+                  )
+                ),
+                isOpen && h('div',{className:'student-body'},
+                  stuPapers.map(p => {
+                    const pqs=(p.questions||[]).filter(q=>q.done&&q.mistake);
+                    return h('div',{key:p.id,className:'teacher-paper'},
+                      h('div',{className:'teacher-paper-title'},p.title,' ',h(PhasePill,{phase:p.phase})),
+                      pqs.length===0
+                        ? h('div',{style:{fontSize:'.72rem',color:'var(--green)',padding:'4px 0'}},'✓ No outstanding actions')
+                        : pqs.map((q,i) => {
+                            const m=mistakeByKey(q.mistake);
+                            return h('div',{key:i,className:'teacher-q'},
+                              h('span',{className:'teacher-q-num'},`Q${q.label||q.num}`),
+                              q.topic&&h('span',{style:{color:'var(--text2)',marginRight:8,fontSize:'.7rem'}},q.topic),
+                              m&&h('span',{className:`badge ${m.badge}`,style:{fontSize:'.65rem'}},m.k,' ',m.label)
+                            );
+                          })
+                    );
+                  })
+                )
+              );
+            })
+    )
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────
+
+function App() {
+  const [studentName,  setStudentName]  = useState(()=>localStorage.getItem('ppt-name')||'');
+  const [loadKey,      setLoadKey]      = useState(0);
+  const [papers,       setPapers]       = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [loadError,    setLoadError]    = useState('');
+  const [currentPaper, setCurrentPaper] = useState(null);
+  const [showNew,      setShowNew]      = useState(false);
+  const [showTeacher,  setShowTeacher]  = useState(false);
+  const [isTeacher,    setIsTeacher]    = useState(false);
+
+  const loadPapers = useCallback(async (name) => {
+    setLoading(true); setLoadError('');
+    try { const p=await getPapers(name); setPapers(p); }
+    catch(e) { console.error(e); setLoadError('Could not load papers from Firebase. Check Firestore rules at: https://console.firebase.google.com/project/past-paper-tracker-8bc10/firestore/rules'); }
+    setLoading(false);
+  }, []);
+
+  useEffect(()=>{ if(studentName) loadPapers(studentName); }, [loadKey]); // eslint-disable-line
+
+  function handleNameConfirm(name) {
+    localStorage.setItem('ppt-name', name);
+    setStudentName(name);
+    setLoadKey(k=>k+1);
+  }
+
+  function handleChangeName() {
+    localStorage.removeItem('ppt-name');
+    setStudentName(''); setPapers([]); setCurrentPaper(null);
+  }
+
+  async function handleNewPaper(title, n) {
+    const ref = await addPaper(studentName, title, n);
+    const newPaper = { id:ref.id, studentName, title, numQuestions:n,
+      phase:'during', questions:makeQuestions(n) };
+    setPapers(prev=>[newPaper,...prev]);
+    setCurrentPaper(newPaper);
+    setShowNew(false);
+  }
+
+  function handlePaperUpdate(updated) {
+    setPapers(prev=>prev.map(p=>p.id===updated.id?updated:p));
+    setCurrentPaper(updated);
+  }
+
+  if (!studentName) return h(NameScreen,{onConfirm:handleNameConfirm});
+  if (isTeacher)    return h(TeacherDashboard,{onClose:()=>setIsTeacher(false)});
+
+  if (currentPaper) return h(PaperView, {
+    paper:currentPaper,
+    onBack:()=>{ setCurrentPaper(null); loadPapers(studentName); },
+    onUpdate:handlePaperUpdate
+  });
+
+  return h('div',null,
+    showNew    && h(NewPaperModal,{onConfirm:handleNewPaper,onClose:()=>setShowNew(false)}),
+    showTeacher && h(TeacherModal,{onSuccess:()=>{ setIsTeacher(true); setShowTeacher(false); },onClose:()=>setShowTeacher(false)}),
+    h(PapersList,{
+      studentName,papers,loadError,
+      onSelect:setCurrentPaper,
+      onNew:()=>setShowNew(true),
+      onTeacher:()=>setShowTeacher(true),
+      onChangeName:handleChangeName,
+      onPapersChange:setPapers
+    })
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
