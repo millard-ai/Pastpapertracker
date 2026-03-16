@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Past Paper Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <!--
+    API KEY SECURITY NOTE
+    ─────────────────────
+    The Firebase API key below is a CLIENT-SIDE key and is intentionally
+    public — Firebase is designed this way. Security comes from Firestore
+    rules, not key secrecy. However, you should restrict this key to your
+    specific domain to prevent it being misused:
+
+    1. Go to: https://console.cloud.google.com/apis/credentials
+       (make sure project "past-paper-tracker-8bc10" is selected)
+    2. Click the API key in the list
+    3. Under "Application restrictions" choose "Websites"
+    4. Add your GitHub Pages URL, e.g. https://yourusername.github.io/*
+    5. Save
+
+    After this, the key will only work from your domain.
+  -->
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0d0d0f;
+      --bg2:     #13131a;
+      --bg3:     #1a1a24;
+      --border:  #24243a;
+      --border2: #2e2e48;
+      --text:    #e8e6f0;
+      --text2:   #b0aec8;   /* was #8a88a8 — lightened for readability */
+      --text3:   #706e88;   /* was #4a4868 — lightened for readability */
+      --amber:   #d08020; --amberlt: #1e1408;
+      --green:   #3aad60; --greenlt: #071a0e;
+      --orange:  #e07830; --ornglt:  #1e0e04;
+      --red:     #d04040; --redlt:   #1e0808;
+      --purple:  #9858d8; --purplt:  #140820;
+      --slate:   #8898b0; --slatlt:  #0c1018;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'DM Mono', monospace; font-size: 14px; }
+    #root { min-height: 100vh; }
+
+    /* ── layout ── */
+    .topbar { position: sticky; top: 0; z-index: 50;
+      background: #0d0d0fdd; backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); padding: 14px 24px; }
+    .topbar-inner { max-width: 820px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .container { max-width: 820px; margin: 0 auto; padding: 24px 24px 80px; }
+
+    /* ── buttons ── */
+    .btn { border: none; border-radius: 8px; font-family: inherit;
+      cursor: pointer; font-weight: 600; transition: all .15s; }
+    .btn-primary { background: linear-gradient(135deg,#8840c0,#a860e0);
+      color: #fff; padding: 11px 24px; font-size: .85rem;
+      box-shadow: 0 4px 16px #9858d820; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px #9858d830; }
+    .btn-primary:disabled { background: var(--bg3); color: var(--text3);
+      cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border2);
+      color: var(--text2); padding: 8px 16px; font-size: .78rem; border-radius: 8px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-ghost:hover { border-color: var(--border); color: var(--text); }
+    .btn-back { background: transparent; border: 1px solid var(--border2);
+      color: var(--text2); padding: 6px 12px; font-size: .75rem; border-radius: 6px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-back:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-danger { background: transparent; border: 1px solid #4a1a1a;
+      color: var(--red); padding: 8px 16px; font-size: .78rem; border-radius: 8px;
+      font-family: inherit; cursor: pointer; transition: all .15s; }
+    .btn-danger:hover { border-color: var(--red); background: var(--redlt); }
+
+    /* ── forms ── */
+    input[type=text], input[type=number], input[type=password], textarea {
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--text); padding: 10px 14px;
+      font-family: inherit; font-size: .9rem; width: 100%; outline: none;
+      transition: border-color .15s; }
+    input:focus, textarea:focus { border-color: var(--amber); }
+    input::placeholder, textarea::placeholder { color: var(--text3); }
+    label.lbl { display: block; font-size: .62rem; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+
+    /* ── cards ── */
+    .panel { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 24px; animation: fadeUp .2s ease; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); } }
+
+    /* ── modals ── */
+    .overlay { position: fixed; inset: 0; background: #00000090;
+      backdrop-filter: blur(4px); z-index: 200;
+      display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .modal { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 32px; max-width: 440px; width: 100%;
+      animation: fadeUp .2s ease; }
+    .modal h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; margin-bottom: 8px; }
+    .modal p { font-size: .82rem; color: var(--text2); margin-bottom: 20px; line-height: 1.7; }
+
+    /* ── name screen ── */
+    .name-screen { min-height: 100vh; display: flex;
+      align-items: center; justify-content: center; padding: 40px 24px; }
+    .name-card { background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 20px; padding: 48px 40px; max-width: 400px; width: 100%;
+      text-align: center; box-shadow: 0 20px 60px #00000060; }
+    .name-card h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 8px; }
+    .name-card p { color: var(--text2); font-size: .85rem; margin-bottom: 28px; line-height: 1.7; }
+
+    /* ── brand ── */
+    .brand-title { font-family: 'Playfair Display', serif;
+      font-size: 1.05rem; font-weight: 600; color: var(--text); }
+    .brand-sub { font-size: .65rem; color: var(--text2); letter-spacing: .1em; text-transform: uppercase; }
+    .student-chip { background: #1a1408; border: 1px solid #3a2010;
+      color: var(--amber); border-radius: 20px; padding: 3px 12px;
+      font-size: .72rem; }
+    .teacher-btn { background: transparent; border: 1px solid var(--border);
+      color: var(--text2); padding: 6px 12px; border-radius: 6px;
+      font-family: inherit; font-size: .7rem; cursor: pointer;
+      text-transform: uppercase; letter-spacing: .08em; transition: all .15s; }
+    .teacher-btn:hover { color: var(--text); border-color: var(--border2); }
+    .teacher-tag { background: #140820; color: var(--purple);
+      border: 1px solid #9858d830; border-radius: 6px;
+      padding: 3px 10px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+
+    /* ── section label ── */
+    .sec-lbl { font-size: .65rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--text2); margin-bottom: 14px; margin-top: 28px;
+      display: flex; align-items: center; gap: 10px; }
+    .sec-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── tabs ── */
+    .tab-bar { display: flex; gap: 2px; background: #100e1f; border-radius: 8px;
+      padding: 3px; border: 1px solid var(--border); margin-bottom: 4px; }
+    .tab-btn { background: transparent; border: none; color: var(--text3);
+      padding: 7px 18px; border-radius: 6px; font-family: inherit;
+      font-size: .7rem; cursor: pointer; text-transform: uppercase;
+      letter-spacing: .09em; font-weight: 600; transition: all .15s; }
+    .tab-btn:hover { color: var(--text2); }
+    .tab-btn.active { background: #1e1830; color: var(--amber); }
+
+    /* ── phase pill ── */
+    .phase-pill { display: inline-flex; align-items: center; gap: 5px;
+      font-size: .68rem; padding: 3px 10px; border-radius: 12px;
+      font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    .phase-during   { background: #071a0e; color: var(--green);  border: 1px solid #1a4828; }
+    .phase-marking  { background: #1e0808; color: var(--red);    border: 1px solid #4a1a1a; }
+    .phase-complete { background: #14081e; color: var(--purple); border: 1px solid #3a1870; }
+
+    /* ── paper cards ── */
+    .paper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+    .paper-card { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; cursor: pointer; transition: all .18s;
+      position: relative; overflow: hidden; }
+    .paper-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--amber), transparent);
+      opacity: 0; transition: opacity .18s; }
+    .paper-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 30px #00000050; }
+    .paper-card:hover::after { opacity: 1; }
+    .paper-card-title { font-family: 'Playfair Display', serif;
+      font-size: .95rem; font-weight: 600; margin-bottom: 4px; }
+    .paper-card-meta { font-size: .7rem; color: var(--text2); margin-bottom: 8px; }
+    .paper-card-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .new-paper-btn { background: transparent; border: 1px dashed var(--border2);
+      border-radius: 12px; padding: 18px; cursor: pointer; transition: all .18s;
+      color: var(--text2); font-size: .82rem; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 80px; }
+    .new-paper-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amberlt); }
+
+    /* ── question grid nav ── */
+    .q-grid-nav { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 20px; }
+    .q-grid-btn { width: 34px; height: 34px; border-radius: 6px; border: 1.5px solid var(--border2);
+      background: var(--bg); color: var(--text2); font-family: inherit;
+      font-size: .72rem; font-weight: 600; cursor: pointer; transition: all .12s;
+      display: flex; align-items: center; justify-content: center; }
+    .q-grid-btn:hover { border-color: var(--amber); color: var(--amber); }
+    .q-grid-btn.current { border-color: var(--amber); background: var(--amberlt); color: var(--amber); }
+    .q-grid-btn.done-green  { background: var(--greenlt); border-color: var(--green);  color: var(--green); }
+    .q-grid-btn.done-orange { background: var(--ornglt);  border-color: var(--orange); color: var(--orange); }
+    .q-grid-btn.done-purple { background: var(--purplt);  border-color: var(--purple); color: var(--purple); }
+    .q-grid-btn.done-red    { background: var(--redlt);   border-color: var(--red);    color: var(--red); }
+    .q-grid-btn.marked-correct { background: var(--greenlt); border-color: var(--green);  color: var(--green); }
+    .q-grid-btn.marked-wrong   { background: var(--redlt);   border-color: var(--red);    color: var(--red); }
+    .q-grid-btn.marked-todo    { background: var(--purplt);  border-color: var(--purple); color: var(--purple); }
+
+    /* ── option buttons ── */
+    .option-btn { display: flex; align-items: flex-start; gap: 14px;
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 12px; padding: 14px 16px; cursor: pointer;
+      transition: all .15s; font-family: inherit; text-align: left; width: 100%;
+      margin-bottom: 8px; }
+    .option-btn:hover { border-color: var(--border); }
+    .option-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+    .option-main { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .option-sub  { font-size: .74rem; margin-top: 3px; color: var(--text2); }
+
+    .opt-green  { border-color: var(--green)!important;  background: var(--greenlt)!important; }
+    .opt-orange { border-color: var(--orange)!important; background: var(--ornglt)!important;  }
+    .opt-purple { border-color: var(--purple)!important; background: var(--purplt)!important;  }
+    .opt-red    { border-color: var(--red)!important;    background: var(--redlt)!important;   }
+    .opt-slate  { border-color: var(--slate)!important;  background: var(--slatlt)!important;  }
+    .opt-amber  { border-color: var(--amber)!important;  background: var(--amberlt)!important; }
+    /* Ensure text stays readable in coloured options */
+    .opt-green .option-main, .opt-green .option-sub,
+    .opt-orange .option-main, .opt-orange .option-sub,
+    .opt-purple .option-main, .opt-purple .option-sub,
+    .opt-red .option-main, .opt-red .option-sub,
+    .opt-slate .option-main, .opt-slate .option-sub,
+    .opt-amber .option-main, .opt-amber .option-sub { color: var(--text) !important; }
+
+    /* ── question hero ── */
+    .q-hero { font-family: 'Playfair Display', serif;
+      font-size: 4rem; font-weight: 700; color: var(--text3); line-height: 1;
+      text-align: center; padding: 16px 0 12px; }
+
+    /* ── progress bar ── */
+    .prog-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .prog-fill   { height: 100%; border-radius: 3px; transition: width .4s;
+      background: linear-gradient(90deg, var(--amber), #e8a040); }
+
+    /* ── transition screen ── */
+    .transition-screen { text-align: center; padding: 48px 20px; }
+    .transition-icon { font-size: 2.8rem; margin-bottom: 14px; }
+    .transition-screen h2 { font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; margin-bottom: 10px; }
+    .transition-screen p { color: var(--text2); font-size: .85rem;
+      line-height: 1.7; max-width: 400px; margin: 0 auto 28px; }
+    .transition-stats { display: flex; justify-content: center; gap: 16px;
+      margin-bottom: 28px; flex-wrap: wrap; }
+    .transition-stat { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 20px; text-align: center; }
+    .transition-stat-num { font-family: 'Playfair Display', serif;
+      font-size: 1.8rem; font-weight: 700; line-height: 1; }
+    .transition-stat-lbl { font-size: .65rem; color: var(--text2); margin-top: 4px;
+      text-transform: uppercase; letter-spacing: .08em; }
+
+    /* ── badges ── */
+    .badge { display: inline-flex; align-items: center; gap: 4px;
+      border-radius: 5px; padding: 2px 8px; font-size: .68rem; font-weight: 600;
+      border: 1px solid transparent; white-space: nowrap; }
+    .badge-green  { background: var(--greenlt); color: #6ad890; border-color: #1a4828; }
+    .badge-orange { background: var(--ornglt);  color: #e8a060; border-color: #4a2010; }
+    .badge-purple { background: var(--purplt);  color: #b888e8; border-color: #3a1870; }
+    .badge-red    { background: var(--redlt);   color: #e07070; border-color: #4a1a1a; }
+    .badge-slate  { background: var(--slatlt);  color: var(--slate); border-color: #283040; }
+    .badge-amber  { background: var(--amberlt); color: #e0a040; border-color: #3a2010; }
+
+    /* ── during-badge ── */
+    .q-during-badge { display: inline-flex; align-items: center; gap: 5px;
+      font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+    /* ── report ── */
+    .report-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; text-align: center; }
+    .stat-num { font-family: 'Playfair Display', serif;
+      font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-lbl { font-size: .6rem; color: var(--text2); margin-top: 4px;
+      text-transform: uppercase; letter-spacing: .08em; }
+    .report-group { margin-bottom: 24px; }
+    .report-group-head { font-size: .65rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--text2); margin-bottom: 10px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+    .report-group-subtitle { color: var(--text3); font-size: .62rem; }
+    .report-item { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+      transition: opacity .2s; }
+    .report-item.done { opacity: .45; }
+    .report-item.done .report-action { text-decoration: line-through; }
+    .report-item-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .report-action { font-size: .78rem; color: var(--text2); line-height: 1.5; }
+    .report-action::before { content: '→  '; color: var(--amber); font-weight: 700; }
+    .action-tick { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+      border: 1.5px solid var(--border2); background: var(--bg);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all .15s; font-size: .8rem; color: var(--green); }
+    .action-tick:hover { border-color: var(--green); }
+    .action-tick.ticked { background: var(--greenlt); border-color: var(--green); }
+
+    /* ── teacher ── */
+    .student-block { background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+    .student-block-hdr { padding: 14px 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; transition: background .15s; }
+    .student-block-hdr:hover { background: var(--bg3); }
+    .student-name { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; }
+    .student-body { padding: 0 18px 14px; border-top: 1px solid var(--border); }
+    .teacher-paper { background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+    .teacher-paper-title { font-size: .82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+    .teacher-q { display: flex; gap: 8px; align-items: center; font-size: .72rem;
+      padding: 3px 0; border-bottom: 1px solid var(--border); }
+    .teacher-q:last-child { border: none; }
+    .teacher-q-num { color: var(--text3); width: 40px; flex-shrink: 0; }
+
+    /* ── empty ── */
+    .empty { text-align: center; padding: 60px 0; color: var(--text2); }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty p { font-size: .85rem; line-height: 1.7; }
+
+    /* ── error banner ── */
+    .error-banner { background: var(--redlt); border: 1px solid var(--red);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+      font-size: .8rem; color: #e08080; line-height: 1.6; }
+
+    /* ── scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCYcEQF6pvH2wooI5u__AWaGLLgWGpl_mk",
+  authDomain:        "past-paper-tracker-8bc10.firebaseapp.com",
+  projectId:         "past-paper-tracker-8bc10",
+  storageBucket:     "past-paper-tracker-8bc10.firebasestorage.app",
+  messagingSenderId: "33410078760",
+  appId:             "1:33410078760:web:5b7516d48db796b435bd1d"
+};
+
+const TEACHER_PASSWORD = "changeme123";
+
+import { initializeApp }
+  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, addDoc, getDocs,
+         doc, updateDoc, deleteDoc, query, where }
+  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { createElement as h, useState, useEffect, useCallback }
+  from 'https://esm.sh/react@18';
+import { createRoot }
+  from 'https://esm.sh/react-dom@18/client';
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getFirestore(app);
+
+// ── Constants ──────────────────────────────────────────────────
+
+const DURING_OPTS = [
+  { v:'first_time',    icon:'✓',  label:'Got it first time',
+    sub:'', colorClass:'opt-green',  badge:'badge-green',  badgeLabel:'Got it' },
+  { v:'checked_notes', icon:'📖', label:'Checked notes — then got it',
+    sub:'You\'ll log what you missed during marking',
+    colorClass:'opt-orange', badge:'badge-orange', badgeLabel:'Used notes' },
+  { v:'came_back',     icon:'↩',  label:'Left it, came back — then answered',
+    sub:'You\'ll log what you missed during marking',
+    colorClass:'opt-purple', badge:'badge-purple', badgeLabel:'Came back' },
+  { v:'skipped',       icon:'→',  label:"Couldn't do it — skip for now",
+    sub:"We'll come back to this during marking",
+    colorClass:'opt-red', badge:'badge-red', badgeLabel:'Skipped' },
+];
+
+const MISTAKE_TYPES = [
+  { k:'A', label:'Forgot a formula',
+    action:'Add to the front cover of your Mistakes Book.',
+    effort:1, colorClass:'opt-amber', badge:'badge-amber' },
+  { k:'B', label:'Forgot a definition or key word',
+    action:'Add to the back of your Mistakes Book.',
+    effort:1, colorClass:'opt-amber', badge:'badge-amber' },
+  { k:'G', label:'Unforced error  (sign, arithmetic, handwriting)',
+    action:'Reflect: were you skipping steps? Was your working unclear? Fix the habit.',
+    effort:2, colorClass:'opt-slate', badge:'badge-slate' },
+  { k:'C', label:'Forgot procedure / Got it wrong',
+    action:'Find drill questions — no context, just the maths. Repeat until fluent.',
+    effort:3, colorClass:'opt-orange', badge:'badge-orange' },
+  { k:'D', label:'Chose the wrong topic entirely',
+    action:'Underline every key word. Write beside each one what maths it hints at. Annotate any diagrams.',
+    effort:4, colorClass:'opt-red', badge:'badge-red' },
+  { k:'E', label:'Right topic but wrong part',
+    action:'Underline every key word. Write beside each one what maths it hints at. Annotate any diagrams.',
+    effort:4, colorClass:'opt-purple', badge:'badge-purple' },
+  { k:'F', label:'Right topic but wrong structure',
+    action:'Find a similar worked example. Annotate each line of working. Write a step-by-step guide.',
+    effort:5, colorClass:'opt-purple', badge:'badge-purple' },
+  { k:'H', label:"Still can't work out what went wrong",
+    action:'Screenshot the question and email your teacher.',
+    effort:6, colorClass:'opt-red', badge:'badge-red' },
+];
+
+const EFFORT_GROUPS = [
+  { efforts:[1], title:'Quick wins — do these first', sub:'Add to your Mistakes Book (5 min)' },
+  { efforts:[2], title:'Habits',                       sub:'Reflect on how you work (5 min)' },
+  { efforts:[3], title:'Drill practice',               sub:'Find questions and repeat (15–30 min each)' },
+  { efforts:[4], title:'Analyse the question',         sub:'Annotate with clues (15 min each)' },
+  { efforts:[5], title:'Structured revision',          sub:'Find example + write step-by-step guide (30–45 min)' },
+  { efforts:[6], title:'Ask for help',                 sub:'Screenshot and email your teacher' },
+];
+
+function mistakeByKey(k) { return MISTAKE_TYPES.find(m => m.k === k); }
+function duringByV(v)     { return DURING_OPTS.find(d => d.v === v); }
+
+function duringGridClass(during) {
+  if (!during) return '';
+  const map = { first_time:'done-green', checked_notes:'done-orange',
+                came_back:'done-purple', skipped:'done-red' };
+  return map[during] || '';
+}
+
+// ── Firebase ───────────────────────────────────────────────────
+
+async function getPapers(studentName) {
+  const q = query(collection(db, 'papers'), where('studentName', '==', studentName));
+  const snap = await getDocs(q);
+  const papers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return papers.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+}
+
+async function getAllPapers() {
+  const snap = await getDocs(collection(db, 'papers'));
+  const papers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return papers.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+}
+
+async function savePaper(paperId, data) {
+  await updateDoc(doc(db, 'papers', paperId), data);
+}
+
+async function deletePaperDB(paperId) {
+  await deleteDoc(doc(db, 'papers', paperId));
+}
+
+function makeQuestions(labels) {
+  return labels.map((lbl, i) => ({
+    num: i + 1, label: lbl,
+    during: null, correct: null, mistake: null, topic: '', done: false, actionDone: false
+  }));
+}
+
+async function addPaper(studentName, title, labels) {
+  const { serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+  return await addDoc(collection(db, 'papers'), {
+    studentName, title,
+    numQuestions: labels.length,
+    labels,
+    phase: 'during',
+    questions: makeQuestions(labels),
+    createdAt: serverTimestamp()
+  });
+}
+
+// ── Small components ───────────────────────────────────────────
+
+function PhasePill({ phase }) {
+  const map = {
+    during:   ['phase-during',   '● During paper'],
+    marking:  ['phase-marking',  '● Marking'],
+    complete: ['phase-complete', '✓ Complete'],
+  };
+  const [cls, lbl] = map[phase] || ['phase-during', phase];
+  return h('span', { className: `phase-pill ${cls}` }, lbl);
+}
+
+function DuringBadge({ during }) {
+  const opt = duringByV(during);
+  if (!opt) return null;
+  return h('span', { className: `q-during-badge ${opt.badge}` }, opt.icon, ' ', opt.badgeLabel);
+}
+
+function MistakeBadge({ mistake }) {
+  const m = mistakeByKey(mistake);
+  if (!m) return null;
+  return h('span', { className: `badge ${m.badge}` }, m.k, ' ', m.label);
+}
+
+// ── NameScreen ─────────────────────────────────────────────────
+
+function NameScreen({ onConfirm }) {
+  const [name, setName] = useState('');
+  const go = () => { if (name.trim()) onConfirm(name.trim()); };
+  return h('div', { className: 'name-screen' },
+    h('div', { className: 'name-card' },
+      h('h1', null, 'Past Paper Tracker'),
+      h('p', null, 'Year 13 Maths Revision\nEnter your name to access your papers.'),
+      h('input', {
+        type: 'text', placeholder: 'Your name…', value: name, autoFocus: true,
+        style: { marginBottom: 14 },
+        onChange: e => setName(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && go(),
+      }),
+      h('button', { className: 'btn btn-primary', style: { width: '100%' },
+        disabled: !name.trim(), onClick: go }, 'Get started →')
+    )
+  );
+}
+
+// ── Modals ─────────────────────────────────────────────────────
+
+function TeacherModal({ onSuccess, onClose }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+  const attempt = () => {
+    if (pw === TEACHER_PASSWORD) onSuccess();
+    else { setErr(true); setPw(''); }
+  };
+  return h('div', { className: 'overlay', onClick: onClose },
+    h('div', { className: 'modal', onClick: e => e.stopPropagation() },
+      h('h3', null, '🔐 Teacher Access'),
+      h('p', null, 'Enter your teacher password to view the class dashboard.'),
+      h('input', {
+        type: 'password', placeholder: 'Password…', value: pw, autoFocus: true,
+        style: err ? { borderColor: 'var(--red)', marginBottom: 8 } : { marginBottom: 8 },
+        onChange: e => { setPw(e.target.value); setErr(false); },
+        onKeyDown: e => e.key === 'Enter' && attempt()
+      }),
+      err && h('p', { style: { color: '#e07070', fontSize: '.75rem', marginBottom: 12 } }, 'Incorrect password'),
+      h('div', { style: { display: 'flex', gap: 10 } },
+        h('button', { className: 'btn btn-primary', onClick: attempt }, 'Unlock'),
+        h('button', { className: 'btn btn-ghost', onClick: onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+function NewPaperModal({ onConfirm, onClose }) {
+  const [title,       setTitle]       = useState('');
+  const [num,         setNum]         = useState('');
+  const [useCustom,   setUseCustom]   = useState(false);
+  const [customLabels,setCustomLabels]= useState('');
+
+  function getLabels() {
+    if (useCustom && customLabels.trim()) {
+      return customLabels.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    const n = Number(num);
+    return Array.from({ length: n }, (_, i) => String(i + 1));
+  }
+
+  const labels = getLabels();
+  const valid = title.trim() && labels.length >= 1 && labels.length <= 60;
+
+  const go = () => { if (valid) onConfirm(title.trim(), labels); };
+
+  return h('div', { className: 'overlay', onClick: onClose },
+    h('div', { className: 'modal', style: { maxWidth: 480 }, onClick: e => e.stopPropagation() },
+      h('h3', null, '📄 Start a new paper'),
+      h('label', { className: 'lbl' }, 'Paper title'),
+      h('input', {
+        type: 'text', placeholder: 'e.g. June 2023 Paper 1', value: title, autoFocus: true,
+        style: { marginBottom: 16 },
+        onChange: e => setTitle(e.target.value),
+      }),
+
+      h('div', { style: { display: 'flex', gap: 10, marginBottom: 12 } },
+        h('button', {
+          className: `btn ${!useCustom ? 'btn-primary' : 'btn-ghost'}`,
+          style: { flex: 1, padding: '8px' },
+          onClick: () => setUseCustom(false)
+        }, 'Number of questions'),
+        h('button', {
+          className: `btn ${useCustom ? 'btn-primary' : 'btn-ghost'}`,
+          style: { flex: 1, padding: '8px' },
+          onClick: () => setUseCustom(true)
+        }, 'Custom labels')
+      ),
+
+      !useCustom
+        ? h('div', null,
+            h('label', { className: 'lbl' }, 'How many questions?'),
+            h('input', {
+              type: 'number', placeholder: 'e.g. 12', value: num, min: 1, max: 60,
+              style: { marginBottom: 8 },
+              onChange: e => setNum(e.target.value),
+              onKeyDown: e => e.key === 'Enter' && go()
+            })
+          )
+        : h('div', null,
+            h('label', { className: 'lbl' }, 'Question labels (comma-separated)'),
+            h('input', {
+              type: 'text',
+              placeholder: 'e.g. 1, 2, 3a, 3b, 3c, 4a, 4b, 5, 6',
+              value: customLabels,
+              style: { marginBottom: 4 },
+              onChange: e => setCustomLabels(e.target.value),
+              onKeyDown: e => e.key === 'Enter' && go()
+            }),
+            labels.length > 0 && h('p', { style: { fontSize: '.7rem', color: 'var(--text2)', marginBottom: 8 } },
+              `${labels.length} question${labels.length !== 1 ? 's' : ''}: ${labels.slice(0,8).join(', ')}${labels.length > 8 ? '…' : ''}`)
+          ),
+
+      h('div', { style: { display: 'flex', gap: 10, marginTop: 16 } },
+        h('button', { className: 'btn btn-primary', disabled: !valid, onClick: go }, 'Start paper'),
+        h('button', { className: 'btn btn-ghost', onClick: onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose }) {
+  return h('div', { className: 'overlay', onClick: onClose },
+    h('div', { className: 'modal', onClick: e => e.stopPropagation() },
+      h('h3', null, title),
+      h('p', null, message),
+      h('div', { style: { display: 'flex', gap: 10 } },
+        h('button', {
+          className: `btn ${danger ? 'btn-danger' : 'btn-primary'}`,
+          onClick: onConfirm
+        }, confirmLabel),
+        h('button', { className: 'btn btn-ghost', onClick: onClose }, 'Cancel')
+      )
+    )
+  );
+}
+
+// ── QuestionGridNav ────────────────────────────────────────────
+
+function QuestionGridNav({ questions, currentIdx, onJump, mode }) {
+  // mode: 'during' | 'marking'
+  return h('div', { className: 'q-grid-nav' },
+    questions.map((q, i) => {
+      let cls = '';
+      if (i === currentIdx) {
+        cls = 'current';
+      } else if (mode === 'during') {
+        cls = duringGridClass(q.during);
+      } else {
+        // marking mode
+        if (q.done) cls = q.correct ? 'marked-correct' : 'marked-wrong';
+        else if (q.during !== null) cls = 'marked-todo';
+      }
+      return h('button', {
+        key: i,
+        className: `q-grid-btn ${cls}`,
+        onClick: () => onJump(i),
+        title: `Q${q.label}`
+      }, q.label);
+    })
+  );
+}
+
+// ── DuringPhase ────────────────────────────────────────────────
+
+function DuringPhase({ paper, onUpdate }) {
+  const qs = paper.questions;
+  const firstUndone = qs.findIndex(q => q.during === null);
+  const [cursor, setCursor] = useState(firstUndone === -1 ? 0 : firstUndone);
+  const [showFinish, setShowFinish] = useState(false);
+
+  const answered = qs.filter(q => q.during !== null).length;
+  const pct = Math.round((answered / qs.length) * 100);
+
+  async function pick(v) {
+    const newQs = qs.map((q, i) => i === cursor ? { ...q, during: v } : q);
+    // Auto-advance to next unanswered
+    const nextUndone = newQs.findIndex((q, i) => i > cursor && q.during === null);
+    const allSet = newQs.every(q => q.during !== null);
+    await savePaper(paper.id, { questions: newQs, phase: allSet ? 'during_complete' : 'during' });
+    onUpdate({ ...paper, questions: newQs, phase: allSet ? 'during_complete' : 'during' });
+    if (!allSet && nextUndone !== -1) setCursor(nextUndone);
+  }
+
+  async function finishPaper() {
+    // Mark all unanswered as skipped
+    const newQs = qs.map(q => q.during === null ? { ...q, during: 'skipped' } : q);
+    await savePaper(paper.id, { questions: newQs, phase: 'during_complete' });
+    onUpdate({ ...paper, questions: newQs, phase: 'during_complete' });
+    setShowFinish(false);
+  }
+
+  const q = qs[cursor];
+  const skippedCount = qs.filter(q => q.during === 'skipped').length;
+  const unanswered = qs.filter(q => q.during === null).length;
+
+  return h('div', null,
+    showFinish && h(ConfirmModal, {
+      title: 'Finish the paper?',
+      message: `${unanswered} question${unanswered !== 1 ? 's' : ''} still unanswered — ${unanswered !== 1 ? 'they' : 'it'} will be marked as skipped. You can come back to ${unanswered !== 1 ? 'them' : 'it'} during marking.`,
+      confirmLabel: 'Finish paper',
+      danger: false,
+      onConfirm: finishPaper,
+      onClose: () => setShowFinish(false)
+    }),
+
+    h('div', { style: { paddingTop: 24 } },
+      h('div', { style: { marginBottom: 6, fontSize: '.72rem', color: 'var(--text2)',
+        display: 'flex', justifyContent: 'space-between' } },
+        h('span', null, 'Navigate questions'),
+        h('span', null, `${answered} of ${qs.length} answered`)
+      ),
+      h(QuestionGridNav, {
+        questions: qs, currentIdx: cursor,
+        onJump: setCursor, mode: 'during'
+      }),
+
+      h('div', { className: 'panel' },
+        h('div', { style: { textAlign: 'center', marginBottom: 6,
+          fontSize: '.7rem', color: 'var(--text2)', letterSpacing: '.1em' } },
+          `QUESTION ${cursor + 1} OF ${qs.length}`
+        ),
+        h('div', { className: 'q-hero' }, `Q${q.label}`),
+        q.during && h('div', { style: { textAlign: 'center', marginBottom: 12 } },
+          h(DuringBadge, { during: q.during })
+        ),
+        h('p', { style: { textAlign: 'center', marginBottom: 18,
+          color: 'var(--text2)', fontSize: '.85rem' } },
+          q.during ? 'Change your answer:' : 'How did this question go?'
+        ),
+        ...DURING_OPTS.map(opt =>
+          h('button', {
+            key: opt.v,
+            className: `option-btn ${q.during === opt.v ? opt.colorClass : ''}`,
+            onClick: () => pick(opt.v)
+          },
+            h('span', { className: 'option-icon' }, opt.icon),
+            h('div', null,
+              h('div', { className: 'option-main' }, opt.label),
+              opt.sub && h('div', { className: 'option-sub' }, opt.sub)
+            )
+          )
+        )
+      ),
+
+      h('div', { style: { marginTop: 16 } },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between',
+          fontSize: '.68rem', color: 'var(--text2)', marginBottom: 4 } },
+          h('span', null, `${pct}% answered`),
+          skippedCount > 0 && h('span', { style: { color: '#e07070' } },
+            `${skippedCount} skipped`)
+        ),
+        h('div', { className: 'prog-track' },
+          h('div', { className: 'prog-fill', style: { width: `${pct}%` } })
+        )
+      ),
+
+      h('div', { style: { display: 'flex', gap: 10, marginTop: 14 } },
+        h('button', {
+          className: 'btn btn-ghost', style: { flex: 1 },
+          disabled: cursor === 0,
+          onClick: () => setCursor(c => c - 1)
+        }, '← Prev'),
+        h('button', {
+          className: 'btn btn-ghost', style: { flex: 1 },
+          disabled: cursor === qs.length - 1,
+          onClick: () => setCursor(c => c + 1)
+        }, 'Next →'),
+        h('button', {
+          className: 'btn btn-primary',
+          onClick: () => {
+            if (answered === qs.length) finishPaper();
+            else setShowFinish(true);
+          }
+        }, 'Finish paper')
+      )
+    )
+  );
+}
+
+// ── DuringComplete (transition) ────────────────────────────────
+
+function DuringComplete({ paper, onUpdate }) {
+  const qs = paper.questions;
+  const counts = {
+    first_time:    qs.filter(q => q.during === 'first_time').length,
+    checked_notes: qs.filter(q => q.during === 'checked_notes').length,
+    came_back:     qs.filter(q => q.during === 'came_back').length,
+    skipped:       qs.filter(q => q.during === 'skipped').length,
+  };
+
+  async function startMarking() {
+    await savePaper(paper.id, { phase: 'marking' });
+    onUpdate({ ...paper, phase: 'marking' });
+  }
+
+  return h('div', { className: 'transition-screen', style: { paddingTop: 32 } },
+    h('div', { className: 'transition-icon' }, '📋'),
+    h('h2', null, 'Paper done — time to mark'),
+    h('p', null,
+      'Put down your pen. Open the mark scheme. ' +
+      'Go through each question below.'
+    ),
+    h('div', { className: 'transition-stats' },
+      counts.first_time > 0 && h('div', { className: 'transition-stat' },
+        h('div', { className: 'transition-stat-num', style: { color: 'var(--green)' } }, counts.first_time),
+        h('div', { className: 'transition-stat-lbl' }, 'Got it')
+      ),
+      counts.checked_notes > 0 && h('div', { className: 'transition-stat' },
+        h('div', { className: 'transition-stat-num', style: { color: 'var(--orange)' } }, counts.checked_notes),
+        h('div', { className: 'transition-stat-lbl' }, 'Used notes')
+      ),
+      counts.came_back > 0 && h('div', { className: 'transition-stat' },
+        h('div', { className: 'transition-stat-num', style: { color: 'var(--purple)' } }, counts.came_back),
+        h('div', { className: 'transition-stat-lbl' }, 'Came back')
+      ),
+      counts.skipped > 0 && h('div', { className: 'transition-stat' },
+        h('div', { className: 'transition-stat-num', style: { color: 'var(--red)' } }, counts.skipped),
+        h('div', { className: 'transition-stat-lbl' }, 'Skipped')
+      ),
+    ),
+    counts.skipped > 0 && h('p', { style: { color: 'var(--text2)', fontSize: '.8rem',
+      marginBottom: 20, marginTop: -8 } },
+      `The ${counts.skipped} skipped question${counts.skipped !== 1 ? 's' : ''} will come up at the end of marking after you've had a chance to look at the topic.`
+    ),
+    h('button', { className: 'btn btn-primary', style: { fontSize: '1rem', padding: '13px 32px' },
+      onClick: startMarking }, 'Begin marking →')
+  );
+}
+
+// ── MarkingPhase ───────────────────────────────────────────────
+
+function MarkingPhase({ paper, onUpdate }) {
+  const qs = paper.questions;
+  // attempted first, skipped last
+  const attempted = qs.filter(q => q.during !== 'skipped');
+  const skipped   = qs.filter(q => q.during === 'skipped');
+  const queue     = [...attempted, ...skipped];
+
+  const firstUndone = queue.findIndex(q => !q.done);
+  const [cursor, setCursor]   = useState(firstUndone === -1 ? 0 : firstUndone);
+  const [step, setStep]       = useState('result');
+  const [tempCorrect, setTC]  = useState(null);
+  const [tempTopic, setTopic] = useState('');
+  const [showSkippedTransition, setShowSkippedTransition] = useState(false);
+
+  const q = queue[cursor];
+  const inSkipped = cursor >= attempted.length;
+  const posLabel  = inSkipped
+    ? `SKIPPED — ${cursor - attempted.length + 1} OF ${skipped.length}`
+    : `MARKING — ${cursor + 1} OF ${attempted.length}`;
+
+  function needsMistake(during, correct) {
+    return !(during === 'first_time' && correct === true);
+  }
+
+  async function finishQuestion(qNum, correct, mistake, topic) {
+    const newQs = qs.map(q =>
+      q.num === qNum ? { ...q, correct, mistake: mistake || null, topic: topic || '', done: true } : q
+    );
+    const allComplete = newQs.every(q => q.done);
+    const newPhase = allComplete ? 'complete' : 'marking';
+    await savePaper(paper.id, { questions: newQs, phase: newPhase });
+    onUpdate({ ...paper, questions: newQs, phase: newPhase });
+    if (!allComplete) {
+      const next = cursor + 1;
+      setCursor(next);
+      setStep('result');
+      setTC(null);
+      setTopic('');
+      // Transition into skipped section
+      if (next === attempted.length && skipped.length > 0) {
+        setShowSkippedTransition(true);
+      }
+    }
+  }
+
+  async function handleResult(correct) {
+    if (!needsMistake(q.during, correct)) {
+      await finishQuestion(q.num, correct, null, tempTopic);
+    } else {
+      setTC(correct);
+      setStep('mistake');
+    }
+  }
+
+  async function handleMistake(k) {
+    await finishQuestion(q.num, tempCorrect, k, tempTopic);
+  }
+
+  if (showSkippedTransition) {
+    return h('div', { className: 'transition-screen', style: { paddingTop: 32 } },
+      h('div', { className: 'transition-icon' }, '↩'),
+      h('h2', null, 'Now for the skipped questions'),
+      h('p', null,
+        `You skipped ${skipped.length} question${skipped.length !== 1 ? 's' : ''}. ` +
+        `Have a look at the relevant topics in your notes or textbook first, then come back and try them.`
+      ),
+      h('button', { className: 'btn btn-primary',
+        onClick: () => setShowSkippedTransition(false) },
+        'Try the skipped questions →')
+    );
+  }
+
+  const markingGridClass = (qi) => {
+    const item = queue[qi];
+    if (!item.done) return qi === cursor ? 'current' : (item.during !== null ? 'marked-todo' : '');
+    return item.correct ? 'marked-correct' : 'marked-wrong';
+  };
+
+  if (step === 'result') {
+    const prompt = q.during === 'skipped'
+      ? 'After looking at the topic — can you answer it now?'
+      : 'Check the mark scheme — was your answer correct?';
+
+    return h('div', { style: { paddingTop: 24 } },
+      h('div', { style: { marginBottom: 6, fontSize: '.72rem', color: 'var(--text2)',
+        display: 'flex', justifyContent: 'space-between' } },
+        h('span', null, 'Navigate questions'),
+        h('span', { style: { color: inSkipped ? 'var(--red)' : 'var(--text2)' } },
+          inSkipped ? '↩ Skipped questions' : '● Marking')
+      ),
+      h('div', { className: 'q-grid-nav' },
+        queue.map((item, i) =>
+          h('button', {
+            key: i,
+            className: `q-grid-btn ${markingGridClass(i)}`,
+            onClick: () => { setCursor(i); setStep('result'); setTC(null); setTopic(''); },
+            title: `Q${item.label}`
+          }, item.label)
+        )
+      ),
+
+      h('div', { className: 'panel' },
+        h('div', { style: { textAlign: 'center', marginBottom: 6,
+          fontSize: '.7rem', color: 'var(--text2)', letterSpacing: '.1em' } }, posLabel),
+        h('div', { className: 'q-hero' }, `Q${q.label}`),
+        h('div', { style: { textAlign: 'center', marginBottom: 16 } },
+          h(DuringBadge, { during: q.during })
+        ),
+        h('label', { className: 'lbl' }, 'Topic (optional)'),
+        h('input', {
+          type: 'text',
+          placeholder: 'e.g. Parametric differentiation, Integration by parts…',
+          value: tempTopic,
+          onChange: e => setTopic(e.target.value),
+          style: { marginBottom: 16 }
+        }),
+        h('p', { style: { textAlign: 'center', marginBottom: 16,
+          color: 'var(--text2)', fontSize: '.88rem', fontWeight: 600 } }, prompt),
+        h('div', { style: { display: 'flex', gap: 10 } },
+          h('button', {
+            className: 'btn option-btn opt-green',
+            style: { flex: 1, justifyContent: 'center', marginBottom: 0 },
+            onClick: () => handleResult(true)
+          }, h('span', { className: 'option-icon' }, '✓'),
+            h('div', null, h('div', { className: 'option-main' }, 'Correct'))),
+          h('button', {
+            className: 'btn option-btn opt-red',
+            style: { flex: 1, justifyContent: 'center', marginBottom: 0 },
+            onClick: () => handleResult(false)
+          }, h('span', { className: 'option-icon' }, '✗'),
+            h('div', null, h('div', { className: 'option-main' }, 'Incorrect')))
+        )
+      ),
+
+      h('div', { style: { display: 'flex', gap: 10, marginTop: 12 } },
+        h('button', {
+          className: 'btn btn-ghost', style: { flex: 1 },
+          disabled: cursor === 0,
+          onClick: () => { setCursor(c => c - 1); setStep('result'); setTC(null); setTopic(''); }
+        }, '← Prev'),
+        h('button', {
+          className: 'btn btn-ghost', style: { flex: 1 },
+          disabled: cursor === queue.length - 1,
+          onClick: () => { setCursor(c => c + 1); setStep('result'); setTC(null); setTopic(''); }
+        }, 'Next →')
+      )
+    );
+  }
+
+  // step === 'mistake'
+  const opts = tempCorrect === false
+    ? MISTAKE_TYPES
+    : MISTAKE_TYPES.filter(m => m.k !== 'H');
+
+  return h('div', { style: { paddingTop: 24 } },
+    h('div', { className: 'panel' },
+      h('div', { style: { textAlign: 'center', marginBottom: 6,
+        fontSize: '.7rem', color: 'var(--text2)', letterSpacing: '.1em' } },
+        `Q${q.label} — WHAT WENT WRONG?`
+      ),
+      h('p', { style: { textAlign: 'center', marginBottom: 18,
+        color: 'var(--text2)', fontSize: '.85rem' } },
+        tempCorrect
+          ? 'What key information did you miss?'
+          : 'What went wrong?'
+      ),
+      ...opts.map(m =>
+        h('button', {
+          key: m.k,
+          className: `option-btn ${m.colorClass}`,
+          onClick: () => handleMistake(m.k)
+        },
+          h('span', { className: 'option-icon', style: { fontWeight: 700, fontSize: '1rem' } }, m.k),
+          h('div', null,
+            h('div', { className: 'option-main' }, m.label),
+            h('div', { className: 'option-sub' }, m.action)
+          )
+        )
+      ),
+      h('button', {
+        className: 'btn btn-ghost', style: { marginTop: 8, width: '100%' },
+        onClick: () => { setStep('result'); setTC(null); }
+      }, '← Back')
+    )
+  );
+}
+
+// ── ReportPhase ────────────────────────────────────────────────
+
+function ReportPhase({ paper, onBack, onUpdate }) {
+  const qs = paper.questions;
+  const total    = qs.length;
+  const correct  = qs.filter(q => q.correct === true).length;
+  const gotFirst = qs.filter(q => q.during === 'first_time' && q.correct === true).length;
+  const withMistakes = qs.filter(q => q.mistake !== null);
+
+  async function toggleDone(qNum) {
+    const newQs = qs.map(q =>
+      q.num === qNum ? { ...q, actionDone: !q.actionDone } : q
+    );
+    await savePaper(paper.id, { questions: newQs });
+    onUpdate({ ...paper, questions: newQs });
+  }
+
+  const groups = EFFORT_GROUPS.map(g => ({
+    ...g,
+    items: withMistakes.filter(q => {
+      const m = mistakeByKey(q.mistake);
+      return m && g.efforts.includes(m.effort);
+    })
+  })).filter(g => g.items.length > 0);
+
+  const remaining = withMistakes.filter(q => !q.actionDone).length;
+
+  return h('div', { style: { marginTop: 24 } },
+    h('div', { className: 'report-stats' },
+      h('div', { className: 'stat-card' },
+        h('div', { className: 'stat-num', style: { color: 'var(--text)' } }, total),
+        h('div', { className: 'stat-lbl' }, 'Questions')),
+      h('div', { className: 'stat-card' },
+        h('div', { className: 'stat-num', style: { color: 'var(--green)' } }, correct),
+        h('div', { className: 'stat-lbl' }, 'Correct')),
+      h('div', { className: 'stat-card' },
+        h('div', { className: 'stat-num', style: { color: 'var(--amber)' } }, gotFirst),
+        h('div', { className: 'stat-lbl' }, 'First time')),
+      h('div', { className: 'stat-card' },
+        h('div', { className: 'stat-num', style: { color: remaining > 0 ? 'var(--red)' : 'var(--green)' } },
+          remaining),
+        h('div', { className: 'stat-lbl' }, 'Actions left')),
+    ),
+
+    withMistakes.length === 0
+      ? h('div', { className: 'empty' },
+          h('div', { className: 'empty-icon' }, '🎉'),
+          h('p', null, 'No actions — great paper!'))
+      : h('div', null,
+          h('p', { style: { fontSize: '.8rem', color: 'var(--text2)', marginBottom: 20, lineHeight: 1.7 } },
+            'Work through these in order — quick wins first. Tick each one off when done.'),
+          ...groups.map((g, gi) =>
+            h('div', { key: gi, className: 'report-group' },
+              h('div', { className: 'report-group-head' },
+                h('span', null, g.title),
+                h('span', { className: 'report-group-subtitle' }, g.sub)
+              ),
+              ...g.items.map((q, qi) => {
+                const m = mistakeByKey(q.mistake);
+                const d = duringByV(q.during);
+                return h('div', { key: qi, className: `report-item ${q.actionDone ? 'done' : ''}` },
+                  h('div', { className: 'report-item-top' },
+                    h('button', {
+                      className: `action-tick ${q.actionDone ? 'ticked' : ''}`,
+                      title: q.actionDone ? 'Mark as not done' : 'Mark as done',
+                      onClick: () => toggleDone(q.num)
+                    }, q.actionDone ? '✓' : ''),
+                    h('span', { style: { fontWeight: 700, fontSize: '.82rem' } }, `Q${q.label}`),
+                    q.topic && h('span', {
+                      style: { background: 'var(--bg3)', border: '1px solid var(--border2)',
+                        borderRadius: 4, padding: '1px 8px', fontSize: '.7rem', color: 'var(--text2)' }
+                    }, q.topic),
+                    d && h('span', { className: `badge ${d.badge}` }, d.badgeLabel),
+                    m && h('span', { className: `badge ${m.badge}` }, m.k, ' ', m.label)
+                  ),
+                  m && h('div', { className: 'report-action' }, m.action)
+                );
+              })
+            )
+          )
+        ),
+
+    h('button', {
+      className: 'btn btn-ghost',
+      style: { marginTop: 24, width: '100%' },
+      onClick: onBack
+    }, '← Back to papers')
+  );
+}
+
+// ── PaperView ──────────────────────────────────────────────────
+
+function PaperView({ paper, onBack, onUpdate }) {
+  const [local, setLocal] = useState(paper);
+  const [showReset, setShowReset] = useState(false);
+
+  function handle(updated) {
+    setLocal(updated);
+    onUpdate(updated);
+  }
+
+  async function resetPaper() {
+    const newQs = makeQuestions(local.labels || local.questions.map(q => q.label || String(q.num)));
+    const updated = { ...local, questions: newQs, phase: 'during' };
+    await savePaper(local.id, { questions: newQs, phase: 'during' });
+    setLocal(updated);
+    onUpdate(updated);
+    setShowReset(false);
+  }
+
+  return h('div', null,
+    showReset && h(ConfirmModal, {
+      title: 'Reset this paper?',
+      message: 'All answers and marking for this paper will be cleared. This cannot be undone.',
+      confirmLabel: 'Reset paper',
+      danger: true,
+      onConfirm: resetPaper,
+      onClose: () => setShowReset(false)
+    }),
+
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+          h('button', { className: 'btn-back', onClick: onBack }, '← Papers'),
+          h('div', null,
+            h('div', { className: 'brand-title' }, local.title),
+            h('div', { className: 'brand-sub' }, `${local.numQuestions} questions`)
+          )
+        ),
+        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          h(PhasePill, { phase: local.phase }),
+          h('button', { className: 'btn btn-ghost',
+            style: { fontSize: '.7rem', padding: '5px 10px' },
+            onClick: () => setShowReset(true) }, 'Reset')
+        )
+      )
+    ),
+    h('div', { className: 'container' },
+      local.phase === 'during'          && h(DuringPhase,   { paper: local, onUpdate: handle }),
+      local.phase === 'during_complete' && h(DuringComplete, { paper: local, onUpdate: handle }),
+      local.phase === 'marking'         && h(MarkingPhase,  { paper: local, onUpdate: handle }),
+      local.phase === 'complete'        && h(ReportPhase,   { paper: local, onBack, onUpdate: handle })
+    )
+  );
+}
+
+// ── PapersList ─────────────────────────────────────────────────
+
+function PapersList({ studentName, papers, loadError, onSelect, onNew, onTeacher, onChangeName, onPapersChange }) {
+  const [tab, setTab] = useState('papers');
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const allActions = papers
+    .filter(p => p.phase === 'complete' || p.phase === 'marking')
+    .flatMap(p =>
+      (p.questions || [])
+        .filter(q => q.done && q.mistake)
+        .map(q => ({ ...q, paperTitle: p.title, paperId: p.id }))
+    );
+
+  const actionGroups = EFFORT_GROUPS.map(g => ({
+    ...g,
+    items: allActions.filter(q => {
+      const m = mistakeByKey(q.mistake);
+      return m && g.efforts.includes(m.effort);
+    })
+  })).filter(g => g.items.length > 0);
+
+  async function toggleGlobalAction(paperId, qNum) {
+    const paper = papers.find(p => p.id === paperId);
+    if (!paper) return;
+    const newQs = paper.questions.map(q =>
+      q.num === qNum ? { ...q, actionDone: !q.actionDone } : q
+    );
+    await savePaper(paperId, { questions: newQs });
+    onPapersChange(papers.map(p => p.id === paperId ? { ...p, questions: newQs } : p));
+  }
+
+  async function handleDelete(paperId) {
+    await deletePaperDB(paperId);
+    onPapersChange(papers.filter(p => p.id !== paperId));
+    setConfirmDelete(null);
+  }
+
+  const allQs    = papers.flatMap(p => p.questions || []);
+  const totalQs  = allQs.length;
+  const correct  = allQs.filter(q => q.correct === true).length;
+  const mCounts  = {};
+  MISTAKE_TYPES.forEach(m => { mCounts[m.k] = allQs.filter(q => q.mistake === m.k).length; });
+
+  return h('div', null,
+    confirmDelete && h(ConfirmModal, {
+      title: 'Delete this paper?',
+      message: 'All data for this paper will be permanently deleted.',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => handleDelete(confirmDelete),
+      onClose: () => setConfirmDelete(null)
+    }),
+
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+          h('div', null,
+            h('div', { className: 'brand-title' }, 'Past Paper Tracker'),
+            h('div', { className: 'brand-sub' }, 'Year 13 Maths Revision')
+          ),
+          h('div', { className: 'student-chip' }, studentName)
+        ),
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'btn btn-ghost',
+            style: { fontSize: '.7rem', padding: '6px 10px' },
+            onClick: onChangeName }, 'change name'),
+          h('button', { className: 'teacher-btn', onClick: onTeacher }, 'Teacher')
+        )
+      )
+    ),
+
+    h('div', { className: 'container' },
+      h('div', { style: { paddingTop: 16, marginBottom: 4 } },
+        h('div', { className: 'tab-bar' },
+          ['papers', 'review', 'stats'].map(t =>
+            h('button', { key: t,
+              className: `tab-btn ${tab === t ? 'active' : ''}`,
+              onClick: () => setTab(t)
+            }, t === 'papers' ? '📄 Papers' : t === 'review' ? '⚠️ Actions' : '📊 Stats')
+          )
+        )
+      ),
+
+      // ── Papers tab ──
+      tab === 'papers' && h('div', null,
+        loadError && h('div', { className: 'error-banner' }, '⚠ ', loadError),
+        h('div', { className: 'sec-lbl' }, 'Your papers'),
+        papers.length === 0
+          ? h('div', { className: 'empty' },
+              h('div', { className: 'empty-icon' }, '📄'),
+              h('p', null, 'No papers yet.\nClick "Start a new paper" to begin.'))
+          : h('div', { className: 'paper-grid' },
+              papers.map(p => {
+                const pqs = p.questions || [];
+                const corr = pqs.filter(q => q.correct === true).length;
+                const date = p.createdAt?.toDate?.()?.toLocaleDateString(
+                  'en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) || '';
+                return h('div', { key: p.id, className: 'paper-card', onClick: () => onSelect(p) },
+                  h('div', { className: 'paper-card-title' }, p.title),
+                  h('div', { className: 'paper-card-meta' },
+                    `${p.numQuestions} questions`, date && ` · ${date}`),
+                  h(PhasePill, { phase: p.phase }),
+                  p.phase === 'complete' && h('div', {
+                    style: { marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }
+                  },
+                    h('span', { className: 'badge badge-green' }, `${corr} correct`),
+                    pqs.filter(q => q.mistake).length > 0 &&
+                      h('span', { className: 'badge badge-red' },
+                        `${pqs.filter(q => q.mistake && !q.actionDone).length} actions left`)
+                  ),
+                  h('div', { className: 'paper-card-actions',
+                    onClick: e => e.stopPropagation() },
+                    h('button', { className: 'btn btn-danger',
+                      style: { fontSize: '.7rem', padding: '4px 10px' },
+                      onClick: () => setConfirmDelete(p.id) }, 'Delete')
+                  )
+                );
+              })
+            ),
+        h('button', {
+          className: 'new-paper-btn', style: { marginTop: 12, width: '100%' },
+          onClick: onNew
+        }, '+ Start a new paper')
+      ),
+
+      // ── Actions tab ──
+      tab === 'review' && h('div', null,
+        allActions.length === 0
+          ? h('div', { className: 'empty' },
+              h('div', { className: 'empty-icon' }, '🎉'),
+              h('p', null, 'No actions yet — complete a paper to see your to-do list here.'))
+          : h('div', null,
+              h('p', { style: { fontSize: '.8rem', color: 'var(--text2)',
+                marginBottom: 20, lineHeight: 1.7 } },
+                'All outstanding actions across your papers, ordered easiest → hardest.'),
+              ...actionGroups.map((g, gi) =>
+                h('div', { key: gi, className: 'report-group' },
+                  h('div', { className: 'report-group-head' },
+                    h('span', null, g.title),
+                    h('span', { className: 'report-group-subtitle' }, g.sub)
+                  ),
+                  ...g.items.map((q, qi) => {
+                    const m = mistakeByKey(q.mistake);
+                    return h('div', { key: qi,
+                      className: `report-item ${q.actionDone ? 'done' : ''}` },
+                      h('div', { className: 'report-item-top' },
+                        h('button', {
+                          className: `action-tick ${q.actionDone ? 'ticked' : ''}`,
+                          title: q.actionDone ? 'Mark as not done' : 'Mark as done',
+                          onClick: () => toggleGlobalAction(q.paperId, q.num)
+                        }, q.actionDone ? '✓' : ''),
+                        h('span', { style: { fontWeight: 700, fontSize: '.78rem',
+                          color: 'var(--text3)' } }, q.paperTitle),
+                        h('span', { style: { fontWeight: 700, fontSize: '.85rem' } },
+                          ` Q${q.label || q.num}`),
+                        q.topic && h('span', {
+                          style: { background: 'var(--bg3)', border: '1px solid var(--border2)',
+                            borderRadius: 4, padding: '1px 8px', fontSize: '.68rem',
+                            color: 'var(--text2)' }
+                        }, q.topic)
+                      ),
+                      m && h('div', { className: 'report-action' }, m.action)
+                    );
+                  })
+                )
+              )
+            )
+      ),
+
+      // ── Stats tab ──
+      tab === 'stats' && h('div', null,
+        totalQs === 0
+          ? h('div', { className: 'empty' }, h('p', null, 'No data yet.'))
+          : h('div', null,
+              h('div', { className: 'report-stats' },
+                h('div', { className: 'stat-card' },
+                  h('div', { className: 'stat-num', style: { color: 'var(--text)' } }, papers.length),
+                  h('div', { className: 'stat-lbl' }, 'Papers')),
+                h('div', { className: 'stat-card' },
+                  h('div', { className: 'stat-num', style: { color: 'var(--text2)' } }, totalQs),
+                  h('div', { className: 'stat-lbl' }, 'Questions')),
+                h('div', { className: 'stat-card' },
+                  h('div', { className: 'stat-num', style: { color: 'var(--green)' } }, correct),
+                  h('div', { className: 'stat-lbl' }, 'Correct')),
+                h('div', { className: 'stat-card' },
+                  h('div', { className: 'stat-num', style: { color: 'var(--amber)' } },
+                    totalQs ? Math.round(correct / totalQs * 100) + '%' : '—'),
+                  h('div', { className: 'stat-lbl' }, 'Score'))
+              ),
+              h('div', { className: 'sec-lbl' }, 'Mistake breakdown'),
+              ...MISTAKE_TYPES.filter(m => mCounts[m.k] > 0).map(m =>
+                h('div', { key: m.k,
+                  style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 } },
+                  h('span', { className: `badge ${m.badge}`,
+                    style: { minWidth: 28, justifyContent: 'center' } }, m.k),
+                  h('div', { style: { flex: 1, fontSize: '.78rem', color: 'var(--text2)' } },
+                    m.label),
+                  h('div', { style: { width: `${Math.round(mCounts[m.k] / totalQs * 100)}%`,
+                    minWidth: 4, height: 8, background: 'var(--border2)',
+                    borderRadius: 4 } }),
+                  h('span', { style: { fontSize: '.75rem', color: 'var(--text3)',
+                    minWidth: 20, textAlign: 'right' } }, mCounts[m.k])
+                )
+              )
+            )
+      )
+    )
+  );
+}
+
+// ── TeacherDashboard ───────────────────────────────────────────
+
+function TeacherDashboard({ onClose }) {
+  const [papers, setPapers]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => {
+    getAllPapers().then(p => { setPapers(p); setLoading(false); });
+  }, []);
+
+  const byStudent = {};
+  papers.forEach(p => {
+    if (!byStudent[p.studentName]) byStudent[p.studentName] = [];
+    byStudent[p.studentName].push(p);
+  });
+
+  const toggle = name => setExpanded(e => ({ ...e, [name]: !e[name] }));
+
+  return h('div', null,
+    h('div', { className: 'topbar' },
+      h('div', { className: 'topbar-inner' },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+          h('button', { className: 'btn-back', onClick: onClose }, '← Back'),
+          h('div', null,
+            h('div', { className: 'brand-title' }, 'Class Dashboard'),
+            h('div', { className: 'brand-sub' }, 'Teacher View'))
+        ),
+        h('div', { className: 'teacher-tag' }, '🔐 Teacher')
+      )
+    ),
+    h('div', { className: 'container' },
+      h('div', { className: 'sec-lbl' }, `${Object.keys(byStudent).length} students`),
+      loading
+        ? h('div', { className: 'empty' }, h('p', null, 'Loading…'))
+        : Object.keys(byStudent).length === 0
+          ? h('div', { className: 'empty' },
+              h('div', { className: 'empty-icon' }, '📊'),
+              h('p', null, 'No student data yet.'))
+          : Object.entries(byStudent).map(([name, stuPapers]) => {
+              const allQs = stuPapers.flatMap(p => p.questions || []);
+              const done  = allQs.filter(q => q.done);
+              const needsTeacher = allQs.filter(q => q.mistake === 'H');
+              const isOpen = expanded[name];
+              return h('div', { key: name, className: 'student-block' },
+                h('div', { className: 'student-block-hdr', onClick: () => toggle(name) },
+                  h('div', null,
+                    h('div', { className: 'student-name' }, name),
+                    h('div', { style: { fontSize: '.7rem', color: 'var(--text2)', marginTop: 2 } },
+                      `${stuPapers.length} paper${stuPapers.length !== 1 ? 's' : ''} · ${done.length} questions marked`)
+                  ),
+                  h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                    needsTeacher.length > 0 &&
+                      h('span', { className: 'badge badge-red' },
+                        `${needsTeacher.length} need teacher`),
+                    h('span', { style: { color: 'var(--text3)', marginLeft: 4 } },
+                      isOpen ? '▲' : '▼')
+                  )
+                ),
+                isOpen && h('div', { className: 'student-body' },
+                  stuPapers.map(p => {
+                    const pqs = (p.questions || []).filter(q => q.done && q.mistake);
+                    return h('div', { key: p.id, className: 'teacher-paper' },
+                      h('div', { className: 'teacher-paper-title' },
+                        p.title, ' ',
+                        h(PhasePill, { phase: p.phase })
+                      ),
+                      pqs.length === 0
+                        ? h('div', { style: { fontSize: '.72rem', color: 'var(--green)', padding: '4px 0' } },
+                            '✓ No outstanding actions')
+                        : pqs.map((q, i) => {
+                            const m = mistakeByKey(q.mistake);
+                            return h('div', { key: i, className: 'teacher-q' },
+                              h('span', { className: 'teacher-q-num' }, `Q${q.label || q.num}`),
+                              q.topic && h('span', { style: { color: 'var(--text2)', marginRight: 8,
+                                fontSize: '.7rem' } }, q.topic),
+                              m && h('span', { className: `badge ${m.badge}`,
+                                style: { fontSize: '.65rem' } }, m.k, ' ', m.label)
+                            );
+                          })
+                    );
+                  })
+                )
+              );
+            })
+    )
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────
+
+function App() {
+  const [studentName,  setStudentName]  = useState(() => localStorage.getItem('ppt-name') || '');
+  const [loadKey,      setLoadKey]      = useState(0);
+  const [papers,       setPapers]       = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [loadError,    setLoadError]    = useState('');
+  const [currentPaper, setCurrentPaper] = useState(null);
+  const [showNew,      setShowNew]      = useState(false);
+  const [showTeacher,  setShowTeacher]  = useState(false);
+  const [isTeacher,    setIsTeacher]    = useState(false);
+
+  const loadPapers = useCallback(async (name) => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const p = await getPapers(name);
+      setPapers(p);
+    } catch (e) {
+      console.error(e);
+      setLoadError(
+        'Could not load papers from Firebase. ' +
+        'Check your Firestore rules at: ' +
+        'https://console.firebase.google.com/project/past-paper-tracker-8bc10/firestore/rules'
+      );
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (studentName) loadPapers(studentName);
+  }, [loadKey]); // eslint-disable-line
+
+  function handleNameConfirm(name) {
+    localStorage.setItem('ppt-name', name);
+    setStudentName(name);
+    setLoadKey(k => k + 1);
+  }
+
+  function handleChangeName() {
+    localStorage.removeItem('ppt-name');
+    setStudentName('');
+    setPapers([]);
+    setCurrentPaper(null);
+  }
+
+  async function handleNewPaper(title, labels) {
+    const ref = await addPaper(studentName, title, labels);
+    const newPaper = {
+      id: ref.id, studentName, title,
+      numQuestions: labels.length, labels,
+      phase: 'during',
+      questions: makeQuestions(labels)
+    };
+    setPapers(prev => [newPaper, ...prev]);
+    setCurrentPaper(newPaper);
+    setShowNew(false);
+  }
+
+  function handlePaperUpdate(updated) {
+    setPapers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setCurrentPaper(updated);
+  }
+
+  if (!studentName) return h(NameScreen, { onConfirm: handleNameConfirm });
+  if (isTeacher)    return h(TeacherDashboard, { onClose: () => setIsTeacher(false) });
+
+  if (currentPaper) return h(PaperView, {
+    paper: currentPaper,
+    onBack: () => { setCurrentPaper(null); loadPapers(studentName); },
+    onUpdate: handlePaperUpdate
+  });
+
+  return h('div', null,
+    showNew && h(NewPaperModal, {
+      onConfirm: handleNewPaper,
+      onClose: () => setShowNew(false)
+    }),
+    showTeacher && h(TeacherModal, {
+      onSuccess: () => { setIsTeacher(true); setShowTeacher(false); },
+      onClose: () => setShowTeacher(false)
+    }),
+    h(PapersList, {
+      studentName, papers, loadError,
+      onSelect: setCurrentPaper,
+      onNew: () => setShowNew(true),
+      onTeacher: () => setShowTeacher(true),
+      onChangeName: handleChangeName,
+      onPapersChange: setPapers
+    })
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
